@@ -1,0 +1,323 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Managed by @shopify/shopify-app-session-storage-prisma. Do not rename fields.
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+enum Plan {
+  PAY_AS_YOU_GO
+  PREMIUM
+}
+
+enum CountryMode {
+  // Visitors from listed countries are blocked.
+  BLACKLIST
+  // Only visitors from listed countries may visit.
+  WHITELIST
+}
+
+// Each storefront blocker has its own "how to handle blocked visitors" config.
+enum Blocker {
+  COUNTRY
+  IP
+  BOT_VPN
+  BLOCK_LIST
+  REFERRER
+  ISP_ASN
+  URL
+}
+
+enum BlockHandling {
+  // Stay on the current page and show a header + message.
+  CUSTOM_INFO
+  // Redirect to a URL (store page or external).
+  REDIRECT
+  // Show one of the predefined block page templates.
+  TEMPLATE
+  // Hide or show chosen page sections with a CSS selector.
+  HIDE_SECTION
+}
+
+enum RuleType {
+  // Storefront blockers
+  COUNTRY
+  STATE
+  CITY
+  IP
+  IP_RANGE
+  ORGANIZATION
+  CRAWLER
+  REFERRER
+  ISP
+  ASN
+  URL
+  PAGE_WHITELIST
+  // Block Lists (legacy): an identified visitor (CT-id) or customer
+  VISITOR
+  // Checkout validation ("Customer Block Lists")
+  CUSTOMER_EMAIL
+  CUSTOMER_PHONE
+  CUSTOMER_NAME
+  CUSTOMER_ZIP
+  // Order filters
+  AUTO_CANCEL_EMAIL
+  AUTO_CANCEL_PHONE
+  AUTO_CANCEL_NAME
+  FRAUD_WHITELIST_EMAIL
+}
+
+enum RuleList {
+  BLACKLIST
+  WHITELIST
+}
+
+enum MatchType {
+  EXACT
+  PARTIAL
+}
+
+enum Verdict {
+  ALLOWED
+  BLOCKED
+  REDIRECTED
+}
+
+enum OrderAction {
+  CANCELLED
+  REFUNDED
+  DELETED
+  NOTIFIED
+}
+
+model Shop {
+  id                 String    @id @default(cuid())
+  shopDomain         String    @unique
+  ownerName          String?
+  plan               Plan      @default(PAY_AS_YOU_GO)
+  // Public, non-secret key the storefront script sends to the verdict API.
+  publicKey          String    @unique @default(cuid())
+  installedAt        DateTime  @default(now())
+  uninstalledAt      DateTime?
+  trialEndsAt        DateTime?
+  billingCycleStart  DateTime  @default(now())
+  pageViewsThisCycle Int       @default(0)
+
+  settings       Settings?
+  blockerConfigs BlockerConfig[]
+  rules          Rule[]
+  visitors       Visitor[]
+  visits         Visit[]
+  orderFlags     OrderFlag[]
+  usageRecords   UsageRecord[]
+  accessLinks    AccessLink[]
+  geoRedirects   GeoRedirect[]
+}
+
+model Settings {
+  id     String @id @default(cuid())
+  shopId String @unique
+  shop   Shop   @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  // General Settings
+  filtersEnabled Boolean @default(true)
+  preloadMask    Boolean @default(false)
+  // Handles/paths the filters apply to; empty = whole store.
+  selectedPages  Json    @default("[]")
+
+  // Country Blocker
+  countryMode      CountryMode @default(BLACKLIST)
+  blockByStateCity Boolean     @default(false)
+
+  // IP Blocker
+  deleteOrdersFromBlockedIps Boolean @default(false)
+
+  // Bot (VPN/Tor/Proxy) Blocker
+  botBlockerEnabled Boolean @default(false)
+
+  // Checkout Validation
+  checkoutValidationEnabled Boolean @default(false)
+  checkoutErrorMessage      String  @default("An error occurred during the checkout process.")
+  preventZeroCheckout       Boolean @default(false)
+
+  // Auto Cancel Order Settings (shared by Block Lists and Fraud Protect)
+  refundOnCancel  Boolean @default(true)
+  notifyOnCancel  Boolean @default(false)
+  deleteCodOrders Boolean @default(false)
+  notifyEmail     String?
+
+  // Fraud Protect
+  fraudProtectEnabled Boolean @default(false)
+  cancelHighRisk      Boolean @default(true)
+  cancelMediumRisk    Boolean @default(false)
+  restockOnCancel     Boolean @default(true)
+
+  // Content Protection
+  contentProtectionEnabled Boolean @default(false)
+
+  updatedAt DateTime @updatedAt
+}
+
+model BlockerConfig {
+  id              String        @id @default(cuid())
+  shopId          String
+  shop            Shop          @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  blocker         Blocker
+  handling        BlockHandling @default(CUSTOM_INFO)
+  header          String        @default("Access Denied")
+  message         String        @default("Sorry, you do not currently have the necessary permissions to access this site, or this site may not be available in your region.")
+  redirectUrl     String?
+  templateId      String?
+  sectionSelector String?
+  updatedAt       DateTime      @updatedAt
+
+  @@unique([shopId, blocker])
+}
+
+model Rule {
+  id        String    @id @default(cuid())
+  shopId    String
+  shop      Shop      @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  type      RuleType
+  list      RuleList  @default(BLACKLIST)
+  matchType MatchType @default(EXACT)
+  value     String
+  comment   String?
+  enabled   Boolean   @default(true)
+  hits      Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@unique([shopId, type, list, value])
+  @@index([shopId, type, list])
+}
+
+// A storefront visitor, identified by a first-party cookie id shown as "CT-<number>".
+model Visitor {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  code      String
+  alias     String?
+  lastIp    String?
+  firstSeen DateTime @default(now())
+  lastSeen  DateTime @default(now())
+  visits    Visit[]
+
+  @@unique([shopId, code])
+}
+
+model Visit {
+  id           String   @id @default(cuid())
+  shopId       String
+  shop         Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  visitorId    String?
+  visitor      Visitor? @relation(fields: [visitorId], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+  ip           String
+  country      String?
+  countryName  String?
+  region       String?
+  city         String?
+  isp          String?
+  organization String?
+  asn          Int?
+  isVpn        Boolean  @default(false)
+  isProxy      Boolean  @default(false)
+  isTor        Boolean  @default(false)
+  isBot        Boolean  @default(false)
+  // Verified search/ad crawlers and other low-risk bots.
+  isLowRiskBot Boolean  @default(false)
+  userAgent    String?
+  pageType     String?
+  url          String?
+  referrer     String?
+  verdict      Verdict
+  // Which blocker decided, for dashboard counts.
+  blocker      Blocker?
+  // Human-readable reason, e.g. "Country: RU" or "IP range: 10.0.0.0/8".
+  reason       String?
+
+  @@index([shopId, createdAt])
+  @@index([shopId, verdict, createdAt])
+  @@index([shopId, ip])
+}
+
+model OrderFlag {
+  id          String      @id @default(cuid())
+  shopId      String
+  shop        Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderId     String
+  orderName   String?
+  riskLevel   String?
+  reason      String
+  actionTaken OrderAction
+  createdAt   DateTime    @default(now())
+
+  @@unique([shopId, orderId])
+}
+
+enum AccessLinkKind {
+  // Turns on Admin Access Mode for whoever opens it.
+  ADMIN_INVITE
+  // Adds the opener's IP to the IP whitelist, then redirects home.
+  AUTO_WHITELIST
+}
+
+model AccessLink {
+  id        String         @id @default(cuid())
+  shopId    String
+  shop      Shop           @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  kind      AccessLinkKind
+  token     String         @unique @default(cuid())
+  label     String?
+  uses      Int            @default(0)
+  createdAt DateTime       @default(now())
+}
+
+model GeoRedirect {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  // ISO country codes
+  countries String[]
+  targetUrl String
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+model UsageRecord {
+  id                   String   @id @default(cuid())
+  shopId               String
+  shop                 Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  periodStart          DateTime
+  views                Int
+  chargedUsd           Decimal  @db.Decimal(10, 2)
+  shopifyUsageRecordId String?
+  createdAt            DateTime @default(now())
+
+  @@index([shopId, periodStart])
+}
