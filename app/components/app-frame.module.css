@@ -468,3 +468,274 @@
   color: var(--vg-red);
   font-size: 15px;
 }
+
+/* Phase 2: blocker pages */
+
+.input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #babfc3;
+  border-radius: 4px;
+  background: #fff;
+  font: inherit;
+  box-sizing: border-box;
+}
+
+.textarea {
+  composes: input;
+  min-height: 120px;
+  resize: vertical;
+}
+
+.fieldLabel {
+  display: block;
+  margin: 12px 0 6px;
+  font-weight: 500;
+}
+
+.helpText {
+  margin: 6px 0 0;
+  color: var(--vg-subdued);
+}
+
+.radioList {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.radioOption {
+  border: 1px solid var(--vg-border);
+  border-radius: 8px;
+}
+
+.radioOptionSelected {
+  border-color: var(--vg-green);
+  box-shadow: 0 0 0 1px var(--vg-green);
+}
+
+.radioLabel {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  cursor: pointer;
+}
+
+.radioLabel input {
+  margin-top: 3px;
+  accent-color: var(--vg-green);
+}
+
+.radioHint {
+  display: block;
+  margin-top: 2px;
+  color: var(--vg-subdued);
+}
+
+.radioBody {
+  padding: 0 16px 16px 40px;
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 20px;
+  border-bottom: 1px solid var(--vg-border);
+}
+
+.tab {
+  padding: 14px 16px;
+  border-bottom: 3px solid transparent;
+  color: var(--vg-subdued);
+  font-weight: 500;
+  text-decoration: none;
+}
+
+.tabActive {
+  border-bottom-color: var(--vg-green);
+  color: var(--vg-text);
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 2fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.columnHelp h2 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.columnHelp p {
+  margin: 0 0 8px;
+  color: var(--vg-subdued);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 16px;
+  color: var(--vg-subdued);
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px 4px 10px;
+  border-radius: 999px;
+  background: #e4e5e7;
+}
+
+.chip button {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  cursor: pointer;
+}
+
+.chip button:hover {
+  background: #c9cccf;
+}
+
+.picker {
+  position: relative;
+}
+
+.pickerList {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  max-height: 260px;
+  margin: 0;
+  padding: 4px 0;
+  overflow-y: auto;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--vg-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+}
+
+.pickerItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 12px;
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pickerItem:hover,
+.pickerItem:focus {
+  background: #f1f2f3;
+}
+
+.menu {
+  position: relative;
+  display: inline-block;
+}
+
+.menuList {
+  position: absolute;
+  z-index: 10;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 220px;
+  margin: 0;
+  padding: 4px 0;
+  list-style: none;
+  background: #fff;
+  border: 1px solid var(--vg-border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgb(0 0 0 / 12%);
+}
+
+.panel {
+  margin-top: 16px;
+  padding: 16px;
+  border: 1px solid var(--vg-border);
+  border-radius: 8px;
+  background: #fafbfb;
+}
+
+.iconButton {
+  display: inline-grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid #babfc3;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+.muted {
+  color: var(--vg-subdued);
+}
+
+.formRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.formRow > * {
+  flex: 1 1 160px;
+}
+
+.formRow > button {
+  flex: 0 0 auto;
+}
+
+.templateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.templateOption {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid var(--vg-border);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.templateOption input {
+  accent-color: var(--vg-green);
+}
+
+@media (max-width: 760px) {
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+}

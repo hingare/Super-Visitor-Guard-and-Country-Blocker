@@ -1,11 +1,24 @@
 {% comment %}
-  App embed that runs on every storefront page. Phase 1 only exposes the
-  storefront context; phase 2 adds the anti-flicker style and verdict call.
+  App embed that runs on every storefront page. The app keeps its storefront
+  settings in an app-owned metafield; when Preload Mask is on, the page stays
+  hidden until the verdict API answers (the script unmasks after 4 seconds at
+  the latest).
 {% endcomment %}
+{%- assign vg_config = app.metafields.visitor_guard.config.value -%}
+{%- assign vg_mask = false -%}
+{%- if vg_config.preloadMask and request.design_mode == false -%}
+  {%- assign vg_mask = true -%}
+{%- endif -%}
+{%- if vg_mask -%}
+  <style id="visitor-guard-mask">html{visibility:hidden!important}</style>
+  <noscript><style>html{visibility:visible!important}</style></noscript>
+{%- endif -%}
 <script>
   window.__visitorGuard = {
     shop: {{ shop.permanent_domain | json }},
-    customerEmail: {{ customer.email | json }},
+    proxyPath: "/apps/super-visitor-guard",
+    enabled: {% if vg_config.filtersEnabled == false %}false{% else %}true{% endif %},
+    masked: {{ vg_mask | json }},
     designMode: {{ request.design_mode | json }},
     pageType: {{ request.page_type | json }}
   };
