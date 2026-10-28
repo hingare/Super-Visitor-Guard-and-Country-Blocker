@@ -15,8 +15,8 @@ components, Prisma and PostgreSQL.
 | 2 | Verdict engine and storefront script; Country Blocker, IP Blocker, Page White Lists; per-blocker block handling; Admin Access, Auto-Whitelist, Preload Mask and Selective Page Filtering on the storefront | Done |
 | 3 | Bot(VPN/Proxy) Blocker with organization and crawler lists, Referrer, ISP/ASN and URL blockers, Block Lists(Legacy) | Done |
 | 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | Done |
-| 5 | Content Protection, Geolocation Redirects | Next |
-| 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | |
+| 5 | Content Protection, Geolocation Redirects | Done |
+| 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | Next |
 | 7 | Billing | |
 | 8 | Contact Us, FAQ, hardening and App Store submission | |
 
@@ -65,6 +65,12 @@ allow/block list, Block Lists(Legacy), Referrer, URL and ISP/ASN blockers,
 the Bot(VPN/Proxy) Blocker (unless the organization is whitelisted), and
 the Country Blocker (countries, then states/provinces and cities).
 
+Geolocation Redirects run last: a visitor every filter let in, from one of
+a rule's countries, is sent to that rule's store address. Blocked visitors,
+Admin Access devices and bots are never redirected. Content Protection is
+switched on by the app embed itself, from the same app-owned metafield as
+Preload Mask, so it needs no verdict call.
+
 A crawler counts as verified when its IP reverse-resolves to the crawler's
 own domain and back (for example googlebot.com), or belongs to the
 crawler's own network.
@@ -95,6 +101,7 @@ After installing on the development store, open the Dashboard and use
 | `app/components/rule-list.tsx`, `app/models/list-rules.server.ts` | Shared list card and its loader/action plumbing |
 | `app/lib/bots.ts`, `app/services/bots.server.ts` | Trusted crawler list and reverse DNS verification |
 | `app/routes/app.visitor-logs.tsx`, `app.ip-lookup.tsx` | Visitor records (filters, alias, block, clean) and IP lookup |
+| `app/routes/app.content-protection.tsx`, `app.geolocation-redirects.tsx` | Other Tools pages |
 | `app/routes/proxy.verdict.tsx` | Storefront verdict API (app proxy) |
 | `app/lib/verdict.ts` | Decides allow or block; pure and unit tested |
 | `app/lib/ip.ts` | IPv4/IPv6 addresses, CIDR blocks and ranges |

@@ -19,6 +19,7 @@
     proxyPath: "/apps/super-visitor-guard",
     enabled: {% if vg_config.filtersEnabled == false %}false{% else %}true{% endif %},
     masked: {{ vg_mask | json }},
+    contentProtection: {% if vg_config.contentProtection %}true{% else %}false{% endif %},
     designMode: {{ request.design_mode | json }},
     pageType: {{ request.page_type | json }}
   };
