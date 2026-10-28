@@ -744,3 +744,57 @@
   border-color: #95c9b4;
   background: #f1f8f5;
 }
+
+/* Phase 4: visitor logs and IP lookup */
+
+.visitorAvatar {
+  display: inline-grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #e4e5e7;
+  flex: 0 0 auto;
+}
+
+.checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.checkbox input {
+  accent-color: var(--vg-green);
+}
+
+details.menu > summary {
+  list-style: none;
+}
+
+details.menu > summary::-webkit-details-marker {
+  display: none;
+}
+
+.detailGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.detailItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detailLabel {
+  color: var(--vg-subdued);
+  font-size: 13px;
+}
+
+.detailValue {
+  font-size: 15px;
+  font-weight: 500;
+  word-break: break-word;
+}
