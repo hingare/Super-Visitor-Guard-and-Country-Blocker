@@ -14,8 +14,8 @@ components, Prisma and PostgreSQL.
 | 1 | Foundation: data model, sidebar layout, Dashboard, General Settings, App extension page, app embed, webhooks | Done |
 | 2 | Verdict engine and storefront script; Country Blocker, IP Blocker, Page White Lists; per-blocker block handling; Admin Access, Auto-Whitelist, Preload Mask and Selective Page Filtering on the storefront | Done |
 | 3 | Bot(VPN/Proxy) Blocker with organization and crawler lists, Referrer, ISP/ASN and URL blockers, Block Lists(Legacy) | Done |
-| 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | Next |
-| 5 | Content Protection, Geolocation Redirects | |
+| 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | Done |
+| 5 | Content Protection, Geolocation Redirects | Next |
 | 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | |
 | 7 | Billing | |
 | 8 | Contact Us, FAQ, hardening and App Store submission | |
@@ -94,6 +94,7 @@ After installing on the development store, open the Dashboard and use
 | `app/routes/app.bot-blocker.tsx`, `app.referrer-blocker.tsx`, `app.isp-asn-blocker.tsx`, `app.url-blocker.tsx`, `app.block-lists.tsx` | Phase 3 blocker pages |
 | `app/components/rule-list.tsx`, `app/models/list-rules.server.ts` | Shared list card and its loader/action plumbing |
 | `app/lib/bots.ts`, `app/services/bots.server.ts` | Trusted crawler list and reverse DNS verification |
+| `app/routes/app.visitor-logs.tsx`, `app.ip-lookup.tsx` | Visitor records (filters, alias, block, clean) and IP lookup |
 | `app/routes/proxy.verdict.tsx` | Storefront verdict API (app proxy) |
 | `app/lib/verdict.ts` | Decides allow or block; pure and unit tested |
 | `app/lib/ip.ts` | IPv4/IPv6 addresses, CIDR blocks and ranges |
