@@ -60,6 +60,13 @@ export interface VerdictConfig {
   urlRules: ListRule[];
   ispRules: ListRule[];
   asnRules: ListRule[];
+  geoRedirects: GeoRedirectRule[];
+}
+
+export interface GeoRedirectRule {
+  id: string;
+  countries: string[];
+  targetUrl: string;
 }
 
 export interface BotInfo {
@@ -260,4 +267,30 @@ export function isRedirectTarget(redirectUrl: string | null, shopHosts: string[]
   } catch {
     return false;
   }
+}
+
+// Geolocation Redirects run only after every filter has let the visitor in.
+// Admins and bots are never redirected, and neither is a visitor already on
+// the target site.
+export function findGeoRedirect(
+  config: VerdictConfig,
+  ctx: VisitContext,
+  decision: Decision,
+  host: string,
+): GeoRedirectRule | null {
+  if (decision.verdict !== "ALLOWED" || ctx.adminAccess || ctx.bot.isBot || !ctx.country) {
+    return null;
+  }
+  if (!config.filtersEnabled) return null;
+  const country = ctx.country.toUpperCase();
+  return (
+    config.geoRedirects.find((rule) => {
+      if (!rule.countries.includes(country)) return false;
+      try {
+        return new URL(rule.targetUrl).hostname.toLowerCase() !== host.toLowerCase();
+      } catch {
+        return false;
+      }
+    }) ?? null
+  );
 }

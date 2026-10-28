@@ -35,6 +35,42 @@
     }
   }
 
+  // Content Protection: no right-click, copying, dragging, text selection
+  // or save/print/view-source shortcuts. Devices with Admin Access are exempt.
+  function protectContent() {
+    var style = document.createElement("style");
+    style.id = "visitor-guard-protect";
+    style.textContent =
+      "body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}" +
+      "input,textarea,[contenteditable]{-webkit-user-select:text;user-select:text}" +
+      "img{-webkit-user-drag:none;user-drag:none}";
+    document.head.appendChild(style);
+
+    var editable = function (target) {
+      return target && target.closest && target.closest("input,textarea,[contenteditable]");
+    };
+    var block = function (event) {
+      if (!editable(event.target)) event.preventDefault();
+    };
+    ["contextmenu", "copy", "cut", "dragstart", "selectstart"].forEach(function (name) {
+      document.addEventListener(name, block, true);
+    });
+    document.addEventListener(
+      "keydown",
+      function (event) {
+        var key = (event.key || "").toLowerCase();
+        var modifier = event.ctrlKey || event.metaKey;
+        var devtools =
+          key === "f12" || (modifier && event.shiftKey && (key === "i" || key === "j" || key === "c"));
+        var shortcut = modifier && ["s", "u", "p", "a", "c", "x"].indexOf(key) !== -1;
+        if (devtools || (shortcut && !editable(event.target))) event.preventDefault();
+      },
+      true,
+    );
+  }
+
+  if (context.contentProtection && !read(STORAGE.admin)) protectContent();
+
   var params = new URLSearchParams(window.location.search);
   var inviteToken = params.get("vg_admin");
   var whitelistToken = params.get("vg_whitelist");

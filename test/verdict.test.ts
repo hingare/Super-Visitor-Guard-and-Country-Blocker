@@ -3,6 +3,7 @@ import { parseIpRule } from "../app/lib/ip";
 import { UNKNOWN_NETWORK } from "../app/lib/network";
 import {
   decide,
+  findGeoRedirect,
   isRedirectTarget,
   normalizePath,
   pageRuleMatches,
@@ -36,6 +37,7 @@ const baseConfig: VerdictConfig = {
   urlRules: [],
   ispRules: [],
   asnRules: [],
+  geoRedirects: [],
 };
 
 const visit: VisitContext = {
@@ -257,5 +259,27 @@ describe("isRedirectTarget", () => {
     expect(isRedirectTarget("/pages/blocked", hosts, "/")).toBe(false);
     expect(isRedirectTarget("https://other.com/pages/blocked", hosts, "/pages/blocked")).toBe(false);
     expect(isRedirectTarget(null, hosts, "/")).toBe(false);
+  });
+});
+
+describe("findGeoRedirect", () => {
+  const rules = config({
+    geoRedirects: [{ id: "g1", countries: ["RU", "BY"], targetUrl: "https://ru.example.com/" }],
+  });
+  const allowed = { verdict: "ALLOWED" as const, reason: "No rule matched" };
+
+  it("redirects allowed visitors from listed countries", () => {
+    expect(findGeoRedirect(rules, visit, allowed, "shop.example.com")?.id).toBe("g1");
+    expect(findGeoRedirect(rules, { ...visit, country: "US" }, allowed, "shop.example.com")).toBeNull();
+  });
+
+  it("never overrides a block, admins, bots or the target site itself", () => {
+    const blockedDecision = { verdict: "BLOCKED" as const, blocker: "IP" as const, reason: "IP" };
+    expect(findGeoRedirect(rules, visit, blockedDecision, "shop.example.com")).toBeNull();
+    expect(findGeoRedirect(rules, { ...visit, adminAccess: true }, allowed, "shop.example.com")).toBeNull();
+    expect(
+      findGeoRedirect(rules, { ...visit, bot: { isBot: true, claimedName: null, verified: false } }, allowed, "x"),
+    ).toBeNull();
+    expect(findGeoRedirect(rules, visit, allowed, "ru.example.com")).toBeNull();
   });
 });

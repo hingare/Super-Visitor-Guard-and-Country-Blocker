@@ -9,7 +9,7 @@ import { verifyBot } from "../services/bots.server";
 import { classifyUserAgent } from "../lib/bots";
 import { normalizeIp } from "../lib/ip";
 import type { NetworkInfo } from "../lib/network";
-import { decide, isRedirectTarget, normalizePath } from "../lib/verdict";
+import { decide, findGeoRedirect, isRedirectTarget, normalizePath } from "../lib/verdict";
 import {
   clientIp,
   isVisitorCode,
@@ -119,7 +119,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const path = normalizePath(param("path") || "/");
   const config = await getVerdictConfig(shop.id, shop.settings);
-  let decision = decide(config, {
+  const context = {
     ip,
     country: geo?.country ?? null,
     regionCode: geo?.regionCode ?? null,
@@ -133,7 +133,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     visitorCode: code,
     network,
     bot: { isBot: agent.isBot, claimedName: agent.claimed?.name ?? null, verified },
-  });
+  };
+  let decision = decide(config, context);
+  let verdict: "ALLOWED" | "BLOCKED" | "REDIRECTED" = decision.verdict;
 
   if (decision.verdict === "BLOCKED") {
     const blockerConfig = await db.blockerConfig.findUnique({
@@ -150,6 +152,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       response.verdict = "BLOCKED";
       response.action = storefrontAction(blockerConfig, decision.blocker);
     }
+  }
+  verdict = decision.verdict;
+
+  const geoRedirect = response.redirect
+    ? null
+    : findGeoRedirect(config, context, decision, param("host") || shop.shopDomain);
+  if (geoRedirect) {
+    response.redirect = geoRedirect.targetUrl;
+    verdict = "REDIRECTED";
+    decision = { verdict: "ALLOWED", reason: `Geolocation redirect: ${geoRedirect.targetUrl}` };
   }
 
   // Record the visit. Admin traffic is not logged.
@@ -180,7 +192,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         pageType: param("pt") || null,
         url: param("url") || null,
         referrer: param("ref") || null,
-        verdict: decision.verdict,
+        verdict,
         blocker: decision.verdict === "BLOCKED" ? decision.blocker : null,
         reason: decision.reason,
       },

@@ -798,3 +798,29 @@ details.menu > summary::-webkit-details-marker {
   font-weight: 500;
   word-break: break-word;
 }
+
+/* Phase 5 */
+
+.segmented {
+  display: inline-flex;
+  border: 1px solid #babfc3;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.segmented button {
+  padding: 8px 16px;
+  border: 0;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+
+.segmented button + button {
+  border-left: 1px solid #babfc3;
+}
+
+.segmented .segmentActive {
+  background: var(--vg-green);
+  color: #fff;
+}

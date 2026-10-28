@@ -3,20 +3,24 @@ import type { AdminApiContext } from "@shopify/shopify-app-react-router/server";
 
 // The theme app embed reads this app-owned metafield in Liquid
 // (app.metafields.visitor_guard.config) to decide, before any script runs,
-// whether to hide the page until the verdict arrives.
+// whether to hide the page until the verdict arrives and whether to turn on
+// Content Protection.
 
 export const STOREFRONT_METAFIELD = { namespace: "visitor_guard", key: "config" } as const;
 
-export function storefrontConfig(settings: Pick<Settings, "filtersEnabled" | "preloadMask">) {
+type StorefrontSettings = Pick<Settings, "filtersEnabled" | "preloadMask" | "contentProtectionEnabled">;
+
+export function storefrontConfig(settings: StorefrontSettings) {
   return {
     filtersEnabled: settings.filtersEnabled,
     preloadMask: settings.filtersEnabled && settings.preloadMask,
+    contentProtection: settings.contentProtectionEnabled,
   };
 }
 
 export async function syncStorefrontConfig(
   admin: AdminApiContext,
-  settings: Pick<Settings, "filtersEnabled" | "preloadMask">,
+  settings: StorefrontSettings,
 ) {
   const installation = await admin.graphql(`#graphql
     query AppInstallationId {

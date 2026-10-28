@@ -107,6 +107,11 @@ export function getVerdictConfig(shopId: string, settings: Settings): Promise<Ve
 }
 
 async function loadVerdictConfig(shopId: string, settings: Settings): Promise<VerdictConfig> {
+  const geoRedirects = await db.geoRedirect.findMany({
+    where: { shopId, enabled: true },
+    orderBy: { createdAt: "asc" },
+    select: { id: true, countries: true, targetUrl: true },
+  });
   const rules = await db.rule.findMany({
     where: {
       shopId,
@@ -170,5 +175,6 @@ async function loadVerdictConfig(shopId: string, settings: Settings): Promise<Ve
     urlRules: listRules("URL"),
     ispRules: listRules("ISP"),
     asnRules: listRules("ASN"),
+    geoRedirects,
   };
 }
