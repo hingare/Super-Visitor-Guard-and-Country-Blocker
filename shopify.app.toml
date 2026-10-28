@@ -6,7 +6,15 @@ client_id = ""
 [access_scopes]
 # read_themes: check whether the app embed is on in the live theme.
 # read_orders, write_orders: tag or cancel orders that match block rules (phase 6).
-scopes = "read_themes,read_orders,write_orders"
+# write_app_proxy: serve the storefront verdict API under /apps/super-visitor-guard.
+scopes = "read_themes,read_orders,write_orders,write_app_proxy"
+
+[app_proxy]
+# The theme embed asks for a verdict at /apps/super-visitor-guard/verdict.
+# Handled by: /app/routes/proxy.verdict.tsx
+url = "/proxy"
+prefix = "apps"
+subpath = "super-visitor-guard"
 
 [webhooks]
 api_version = "2026-10"

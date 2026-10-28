@@ -11,6 +11,8 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
+import { invalidateVerdictConfig } from "../models/rules.server";
+import { syncStorefrontConfig } from "../models/storefront-config.server";
 import { APP_NAME } from "../lib/app-info";
 import {
   MAX_SELECTED_PAGES,
@@ -72,11 +74,27 @@ type ActionResult = { ok: true; message: string } | { ok: false; error: string }
 export const action = async ({
   request,
 }: ActionFunctionArgs): Promise<ActionResult> => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
   const intent = String(form.get("intent"));
+  const result = await runAction(shop, form, intent);
 
+  if (result.ok && ["filters", "preloadMask", "addPage", "removePage"].includes(intent)) {
+    invalidateVerdictConfig(shop.id);
+    const settings = await db.settings.findUniqueOrThrow({ where: { shopId: shop.id } });
+    await syncStorefrontConfig(admin, settings).catch((error) =>
+      console.error("Could not sync storefront config", error),
+    );
+  }
+  return result;
+};
+
+async function runAction(
+  shop: Awaited<ReturnType<typeof getShopWithSettings>>,
+  form: FormData,
+  intent: string,
+): Promise<ActionResult> {
   switch (intent) {
     case "filters": {
       const filtersEnabled = isChecked(form.get("enabled"));
@@ -143,7 +161,7 @@ export const action = async ({
     default:
       return { ok: false, error: "Unknown action." };
   }
-};
+}
 
 function LinkTable({
   links,
