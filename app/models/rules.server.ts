@@ -1,7 +1,7 @@
 import type { Prisma, RuleList, RuleType, Settings } from "@prisma/client";
 import db from "../db.server";
 import { parseIpRule } from "../lib/ip";
-import type { IpRule, VerdictConfig } from "../lib/verdict";
+import type { IpRule, ListRule, VerdictConfig } from "../lib/verdict";
 import { readSelectedPages } from "../lib/settings";
 
 export const PAGE_SIZE = 20;
@@ -111,7 +111,23 @@ async function loadVerdictConfig(shopId: string, settings: Settings): Promise<Ve
     where: {
       shopId,
       enabled: true,
-      type: { in: ["PAGE_WHITELIST", "IP", "IP_RANGE", "COUNTRY", "STATE", "CITY"] },
+      type: {
+        in: [
+          "PAGE_WHITELIST",
+          "IP",
+          "IP_RANGE",
+          "COUNTRY",
+          "STATE",
+          "CITY",
+          "ORGANIZATION",
+          "CRAWLER",
+          "VISITOR",
+          "REFERRER",
+          "URL",
+          "ISP",
+          "ASN",
+        ],
+      },
     },
     select: { id: true, type: true, list: true, matchType: true, value: true },
   });
@@ -123,6 +139,10 @@ async function loadVerdictConfig(shopId: string, settings: Settings): Promise<Ve
         const parsed = parseIpRule(rule.value);
         return parsed.ok ? [{ id: rule.id, value: rule.value, matcher: parsed.matcher }] : [];
       });
+  const listRules = (type: RuleType, list: RuleList = "BLACKLIST"): ListRule[] =>
+    rules
+      .filter((rule) => rule.type === type && rule.list === list)
+      .map((rule) => ({ id: rule.id, matchType: rule.matchType, value: rule.value }));
   const placeRules = (type: RuleType) =>
     rules
       .filter((rule) => rule.type === type && rule.list === settings.countryMode)
@@ -141,5 +161,14 @@ async function loadVerdictConfig(shopId: string, settings: Settings): Promise<Ve
     countries: placeRules("COUNTRY"),
     regions: placeRules("STATE"),
     cities: placeRules("CITY"),
+    botBlockerEnabled: settings.botBlockerEnabled,
+    orgWhitelist: listRules("ORGANIZATION", "WHITELIST"),
+    crawlerWhitelist: listRules("CRAWLER", "WHITELIST"),
+    crawlerBlacklist: listRules("CRAWLER"),
+    blockedVisitors: listRules("VISITOR"),
+    referrerRules: listRules("REFERRER"),
+    urlRules: listRules("URL"),
+    ispRules: listRules("ISP"),
+    asnRules: listRules("ASN"),
   };
 }

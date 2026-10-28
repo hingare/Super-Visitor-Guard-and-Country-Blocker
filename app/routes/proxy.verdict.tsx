@@ -4,8 +4,11 @@ import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
 import { getVerdictConfig, invalidateVerdictConfig } from "../models/rules.server";
-import { lookupGeo } from "../services/geoip.server";
+import { lookupGeo, lookupNetwork } from "../services/geoip.server";
+import { verifyBot } from "../services/bots.server";
+import { classifyUserAgent } from "../lib/bots";
 import { normalizeIp } from "../lib/ip";
+import type { NetworkInfo } from "../lib/network";
 import { decide, isRedirectTarget, normalizePath } from "../lib/verdict";
 import {
   clientIp,
@@ -84,11 +87,35 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
+  // Outside production, vg_test_* parameters stand in for the GeoIP data.
   // eslint-disable-next-line no-undef
-  const devCountry = process.env.NODE_ENV !== "production" ? param("vg_test_country") : "";
-  const geo = devCountry
-    ? { country: devCountry.toUpperCase(), countryName: null, regionCode: null, regionName: null, city: null }
-    : await lookupGeo(ip);
+  const testing = process.env.NODE_ENV !== "production";
+  const devCountry = testing ? param("vg_test_country") : "";
+  const [geo, lookedUpNetwork] = await Promise.all([
+    devCountry
+      ? { country: devCountry.toUpperCase(), countryName: null, regionCode: null, regionName: null, city: null }
+      : lookupGeo(ip),
+    lookupNetwork(ip),
+  ]);
+  const network: NetworkInfo =
+    testing && (param("vg_test_asn") || param("vg_test_org") || param("vg_test_vpn"))
+      ? {
+          ...lookedUpNetwork,
+          asn: Number(param("vg_test_asn")) || null,
+          organization: param("vg_test_org") || null,
+          isVpn: param("vg_test_vpn") === "1",
+        }
+      : lookedUpNetwork;
+
+  // The script reports navigator.userAgent, which is what the shopper's
+  // browser sends; the proxied request's own header is only a fallback.
+  const userAgent = (param("ua") || request.headers.get("user-agent") || "").slice(0, 500);
+  const agent = classifyUserAgent(userAgent);
+  const verified = agent.claimed && ip ? await verifyBot(agent.claimed, ip, network.asn) : false;
+
+  let code = param("vc");
+  if (!isVisitorCode(code)) code = newVisitorCode();
+  response.visitorCode = code;
 
   const path = normalizePath(param("path") || "/");
   const config = await getVerdictConfig(shop.id, shop.settings);
@@ -101,6 +128,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     path,
     search: param("search"),
     adminAccess,
+    referrer: param("ref"),
+    userAgent,
+    visitorCode: code,
+    network,
+    bot: { isBot: agent.isBot, claimedName: agent.claimed?.name ?? null, verified },
   });
 
   if (decision.verdict === "BLOCKED") {
@@ -116,14 +148,11 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       decision = { verdict: "ALLOWED", reason: "Redirect page" };
     } else {
       response.verdict = "BLOCKED";
-      response.action = storefrontAction(blockerConfig);
+      response.action = storefrontAction(blockerConfig, decision.blocker);
     }
   }
 
   // Record the visit. Admin traffic is not logged.
-  let code = param("vc");
-  if (!isVisitorCode(code)) code = newVisitorCode();
-  response.visitorCode = code;
   if (!adminAccess && ip) {
     const visitor = await db.visitor.upsert({
       where: { shopId_code: { shopId: shop.id, code } },
@@ -139,7 +168,15 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         countryName: geo?.countryName ?? null,
         region: geo?.regionCode ?? geo?.regionName ?? null,
         city: geo?.city ?? null,
-        userAgent: request.headers.get("user-agent")?.slice(0, 500) ?? null,
+        isp: network.organization,
+        organization: network.organization,
+        asn: network.asn,
+        isVpn: network.isVpn || network.isHosting,
+        isProxy: network.isProxy,
+        isTor: network.isTor,
+        isBot: agent.isBot,
+        isLowRiskBot: verified,
+        userAgent: userAgent || null,
         pageType: param("pt") || null,
         url: param("url") || null,
         referrer: param("ref") || null,
