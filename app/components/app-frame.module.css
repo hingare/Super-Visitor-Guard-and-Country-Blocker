@@ -739,3 +739,8 @@
     grid-template-columns: 1fr;
   }
 }
+
+.bannerSuccess {
+  border-color: #95c9b4;
+  background: #f1f8f5;
+}

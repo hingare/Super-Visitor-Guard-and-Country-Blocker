@@ -7,9 +7,13 @@
 //   3. Page White Lists
 //   4. Selective Page Filtering (page not selected)
 //   5. IP whitelist, then IP blacklist (highest-priority blocker)
-//   6. Country Blocker (countries, then states/provinces and cities)
+//   6. Verified search/ads crawlers, then the crawler allow and block lists
+//   7. Block Lists(Legacy), Referrer, URL and ISP/ASN blockers
+//   8. Bot(VPN/Proxy) Blocker, unless the organization is whitelisted
+//   9. Country Blocker (countries, then states/provinces and cities)
 
 import type { IpMatcher } from "./ip";
+import type { NetworkInfo } from "./network";
 import { ipMatches, parseIp } from "./ip";
 import { regionRuleValue } from "./countries";
 
@@ -27,6 +31,14 @@ export interface IpRule {
   matcher: IpMatcher;
 }
 
+export interface ListRule {
+  id: string;
+  matchType: MatchType;
+  value: string;
+}
+
+export type BlockerName = "COUNTRY" | "IP" | "BOT_VPN" | "BLOCK_LIST" | "REFERRER" | "ISP_ASN" | "URL";
+
 export interface VerdictConfig {
   filtersEnabled: boolean;
   selectedPages: string[];
@@ -39,6 +51,22 @@ export interface VerdictConfig {
   countries: string[];
   regions: string[];
   cities: string[];
+  botBlockerEnabled: boolean;
+  orgWhitelist: ListRule[];
+  crawlerWhitelist: ListRule[];
+  crawlerBlacklist: ListRule[];
+  blockedVisitors: ListRule[];
+  referrerRules: ListRule[];
+  urlRules: ListRule[];
+  ispRules: ListRule[];
+  asnRules: ListRule[];
+}
+
+export interface BotInfo {
+  isBot: boolean;
+  // Trusted crawler the user agent claims to be, and whether it checked out.
+  claimedName: string | null;
+  verified: boolean;
 }
 
 export interface VisitContext {
@@ -52,11 +80,16 @@ export interface VisitContext {
   // Query string including "?", used by partial page matches.
   search: string;
   adminAccess: boolean;
+  referrer: string;
+  userAgent: string;
+  visitorCode: string | null;
+  network: NetworkInfo;
+  bot: BotInfo;
 }
 
 export type Decision =
   | { verdict: "ALLOWED"; reason: string; ruleId?: string }
-  | { verdict: "BLOCKED"; blocker: "IP" | "COUNTRY"; reason: string; ruleId?: string };
+  | { verdict: "BLOCKED"; blocker: BlockerName; reason: string; ruleId?: string };
 
 export function normalizePath(pathname: string): string {
   let path = pathname.toLowerCase().replace(/\/{2,}/g, "/");
@@ -116,7 +149,78 @@ export function decide(config: VerdictConfig, ctx: VisitContext): Decision {
     }
   }
 
-  return decideCountry(config, ctx);
+  return decideLists(config, ctx) ?? decideBotVpn(config, ctx) ?? decideCountry(config, ctx);
+}
+
+function textMatches(rule: ListRule, text: string): boolean {
+  const value = rule.value.toLowerCase();
+  const subject = text.toLowerCase();
+  return rule.matchType === "EXACT" ? subject === value : subject.includes(value);
+}
+
+export function referrerMatches(rule: ListRule, referrer: string): boolean {
+  if (!referrer) return false;
+  if (rule.matchType === "PARTIAL") return referrer.toLowerCase().includes(rule.value.toLowerCase());
+  try {
+    const host = new URL(referrer).hostname.toLowerCase();
+    return host === rule.value || host.endsWith(`.${rule.value}`);
+  } catch {
+    return false;
+  }
+}
+
+function blocked(blocker: BlockerName, reason: string, rule?: ListRule): Decision {
+  return { verdict: "BLOCKED", blocker, reason, ruleId: rule?.id };
+}
+
+function decideLists(config: VerdictConfig, ctx: VisitContext): Decision | null {
+  if (ctx.bot.claimedName && ctx.bot.verified) {
+    return { verdict: "ALLOWED", reason: `Trusted bot: ${ctx.bot.claimedName}` };
+  }
+  const ua = ctx.userAgent;
+  if (ua) {
+    const allowed = config.crawlerWhitelist.find((rule) => ua.toLowerCase().includes(rule.value));
+    if (allowed) return { verdict: "ALLOWED", reason: `Crawler allow list: ${allowed.value}`, ruleId: allowed.id };
+    const crawler = config.crawlerBlacklist.find((rule) => ua.toLowerCase().includes(rule.value));
+    if (crawler) return blocked("BOT_VPN", `Crawler: ${crawler.value}`, crawler);
+  }
+
+  if (ctx.visitorCode) {
+    const visitor = config.blockedVisitors.find((rule) => rule.value === ctx.visitorCode);
+    if (visitor) return blocked("BLOCK_LIST", `Visitor: ${visitor.value}`, visitor);
+  }
+
+  const referrer = config.referrerRules.find((rule) => referrerMatches(rule, ctx.referrer));
+  if (referrer) return blocked("REFERRER", `Referrer: ${referrer.value}`, referrer);
+
+  const url = config.urlRules.find((rule) => pageRuleMatches(rule, ctx.path, ctx.search));
+  if (url) return blocked("URL", `URL: ${url.value}`, url);
+
+  const { asn, organization } = ctx.network;
+  if (asn !== null) {
+    const rule = config.asnRules.find((item) => item.value === String(asn));
+    if (rule) return blocked("ISP_ASN", `ASN: AS${asn}`, rule);
+  }
+  if (organization) {
+    const rule = config.ispRules.find((item) => textMatches(item, organization));
+    if (rule) return blocked("ISP_ASN", `ISP: ${organization}`, rule);
+  }
+  return null;
+}
+
+function decideBotVpn(config: VerdictConfig, ctx: VisitContext): Decision | null {
+  if (!config.botBlockerEnabled) return null;
+  const { network, bot } = ctx;
+  const organization = network.organization?.toLowerCase() ?? "";
+  if (organization && config.orgWhitelist.some((rule) => organization.includes(rule.value))) {
+    return null;
+  }
+  if (network.isTor) return blocked("BOT_VPN", "Tor exit node");
+  if (network.isVpn) return blocked("BOT_VPN", "VPN");
+  if (network.isProxy) return blocked("BOT_VPN", "Proxy");
+  if (network.isHosting) return blocked("BOT_VPN", "Hosting network");
+  if (bot.claimedName && !bot.verified) return blocked("BOT_VPN", `Fake ${bot.claimedName}`);
+  return null;
 }
 
 function decideCountry(config: VerdictConfig, ctx: VisitContext): Decision {

@@ -19,6 +19,9 @@ export async function saveHandling(
 ): Promise<ActionResult> {
   const parsed = parseHandlingForm(form);
   if (!parsed.ok) return parsed;
+  if (blocker === "REFERRER" && parsed.value.handling === "CUSTOM_INFO") {
+    return { ok: false, error: "The referrer blocker cannot show information on the page." };
+  }
   await db.blockerConfig.upsert({
     where: { shopId_blocker: { shopId, blocker } },
     create: { shopId, blocker, ...parsed.value },

@@ -21,24 +21,26 @@ export function CardSection({
   );
 }
 
+const BANNER_TONES = {
+  info: { className: "", icon: "info", iconTone: "info" },
+  warning: { className: "bannerWarning", icon: "alert-circle", iconTone: "caution" },
+  success: { className: "bannerSuccess", icon: "check-circle", iconTone: "success" },
+} as const;
+
 export function Banner({
   tone = "info",
   children,
 }: {
-  tone?: "info" | "warning";
+  tone?: keyof typeof BANNER_TONES;
   children: ReactNode;
 }) {
+  const look = BANNER_TONES[tone];
   return (
     <div
-      className={
-        tone === "warning" ? `${styles.banner} ${styles.bannerWarning}` : styles.banner
-      }
+      className={look.className ? `${styles.banner} ${styles[look.className]}` : styles.banner}
       role="status"
     >
-      <s-icon
-        type={tone === "warning" ? "alert-circle" : "info"}
-        tone={tone === "warning" ? "caution" : "info"}
-      />
+      <s-icon type={look.icon} tone={look.iconTone} />
       <div>{children}</div>
     </div>
   );

@@ -13,8 +13,8 @@ components, Prisma and PostgreSQL.
 | --- | --- | --- |
 | 1 | Foundation: data model, sidebar layout, Dashboard, General Settings, App extension page, app embed, webhooks | Done |
 | 2 | Verdict engine and storefront script; Country Blocker, IP Blocker, Page White Lists; per-blocker block handling; Admin Access, Auto-Whitelist, Preload Mask and Selective Page Filtering on the storefront | Done |
-| 3 | Bot(VPN/Proxy) Blocker with organization and crawler lists, Referrer, ISP/ASN and URL blockers, Block Lists(Legacy) | Next |
-| 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | |
+| 3 | Bot(VPN/Proxy) Blocker with organization and crawler lists, Referrer, ISP/ASN and URL blockers, Block Lists(Legacy) | Done |
+| 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | Next |
 | 5 | Content Protection, Geolocation Redirects | |
 | 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | |
 | 7 | Billing | |
@@ -36,7 +36,15 @@ npm run dev                   # shopify app dev
 Visitor locations come from a MaxMind GeoLite2-City (free, needs a MaxMind
 account) or GeoIP2-City database. Download the `.mmdb` file and point
 `GEOIP_CITY_DB` at it; the file is reloaded when it changes. Without it the
-Country Blocker cannot locate visitors and lets everyone through. Outside
+Country Blocker cannot locate visitors and lets everyone through.
+
+Two more databases are optional: `GEOIP_ASN_DB` (GeoLite2-ASN, free) gives
+each visitor's network number and organization for the ISP/ASN Blocker, and
+`GEOIP_ANON_DB` (GeoIP2 Anonymous IP, paid) flags VPN, proxy and hosting
+addresses. Without the anonymous-IP database, the Bot(VPN/Proxy) Blocker
+treats a built-in list of hosting and VPN networks as VPN traffic. Tor exit
+nodes come from the Tor Project's public list, refreshed hourly (set
+`TOR_EXIT_LIST=off` to skip it). Outside
 production you can test a country with `?vg_test_country=RU` on the verdict
 request.
 
@@ -52,7 +60,14 @@ seconds; on errors the page is shown).
 
 Checks run in this order, and the first match wins: Admin Access, all
 filters off, Page White Lists, Selective Page Filtering, IP whitelist, IP
-blacklist, Country Blocker (countries, then states/provinces and cities).
+blacklist, verified search/ads crawlers (always let in), the crawler
+allow/block list, Block Lists(Legacy), Referrer, URL and ISP/ASN blockers,
+the Bot(VPN/Proxy) Blocker (unless the organization is whitelisted), and
+the Country Blocker (countries, then states/provinces and cities).
+
+A crawler counts as verified when its IP reverse-resolves to the crawler's
+own domain and back (for example googlebot.com), or belongs to the
+crawler's own network.
 
 After installing on the development store, open the Dashboard and use
 "Open theme editor" to switch on the **Super Visitor Guard** app embed.
@@ -76,6 +91,9 @@ After installing on the development store, open the Dashboard and use
 | `app/routes/app.settings.tsx` | General Settings: all filters switch, Admin Access, Preload Mask, Selective Page Filtering, Auto-Whitelist links |
 | `app/routes/app.extension.tsx` | App embed status and theme editor deep link |
 | `app/routes/app.country-blocker.tsx`, `app.ip-blocker.tsx`, `app.page-whitelists.tsx` | Phase 2 blocker pages |
+| `app/routes/app.bot-blocker.tsx`, `app.referrer-blocker.tsx`, `app.isp-asn-blocker.tsx`, `app.url-blocker.tsx`, `app.block-lists.tsx` | Phase 3 blocker pages |
+| `app/components/rule-list.tsx`, `app/models/list-rules.server.ts` | Shared list card and its loader/action plumbing |
+| `app/lib/bots.ts`, `app/services/bots.server.ts` | Trusted crawler list and reverse DNS verification |
 | `app/routes/proxy.verdict.tsx` | Storefront verdict API (app proxy) |
 | `app/lib/verdict.ts` | Decides allow or block; pure and unit tested |
 | `app/lib/ip.ts` | IPv4/IPv6 addresses, CIDR blocks and ranges |
