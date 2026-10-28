@@ -40,6 +40,10 @@ export function newVisitorCode(): string {
   return `CT-${100_000_000 + digits}`;
 }
 
+// The referrer blocker cannot show information on the page (the visitor
+// would simply browse on from it), so it redirects instead.
+export const DEFAULT_REFERRER_REDIRECT = "https://www.google.com";
+
 export function storefrontAction(
   config: {
     handling: BlockHandling;
@@ -49,7 +53,20 @@ export function storefrontAction(
     templateId: string | null;
     sectionSelector: string | null;
   } | null,
+  blocker?: string,
 ): StorefrontAction {
+  const needsRedirect =
+    !config ||
+    config.handling === "CUSTOM_INFO" ||
+    (config.handling === "REDIRECT" && !config.redirectUrl);
+  if (blocker === "REFERRER" && needsRedirect) {
+    return {
+      type: "REDIRECT",
+      header: DEFAULT_HEADER,
+      message: DEFAULT_MESSAGE,
+      redirectUrl: config?.redirectUrl || DEFAULT_REFERRER_REDIRECT,
+    };
+  }
   if (!config) return { type: "CUSTOM_INFO", header: DEFAULT_HEADER, message: DEFAULT_MESSAGE };
   const action: StorefrontAction = {
     type: config.handling,

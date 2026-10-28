@@ -159,6 +159,7 @@
     url: window.location.href.slice(0, 1000),
     ref: document.referrer.slice(0, 1000),
     pt: context.pageType || "",
+    ua: navigator.userAgent.slice(0, 500),
     vc: read(STORAGE.visitor),
     at: read(STORAGE.admin),
   });

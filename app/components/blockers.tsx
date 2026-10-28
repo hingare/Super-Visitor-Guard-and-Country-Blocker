@@ -83,12 +83,21 @@ function MessageFields({ config }: { config: HandlingConfig }) {
 export function HandlingCard({
   blockerName,
   config,
+  disabledOptions = [],
+  defaultRedirect,
 }: {
   blockerName: string;
   config: HandlingConfig;
+  // Options this blocker cannot use, shown greyed out.
+  disabledOptions?: BlockHandling[];
+  // Offered by a "Use default" button next to the redirect page.
+  defaultRedirect?: string;
 }) {
   const fetcher = useFetcher<Result>();
-  const [selected, setSelected] = useState<BlockHandling>(config.handling);
+  const [selected, setSelected] = useState<BlockHandling>(
+    disabledOptions.includes(config.handling) ? "REDIRECT" : config.handling,
+  );
+  const [redirectUrl, setRedirectUrl] = useState(config.redirectUrl ?? defaultRedirect ?? "");
   const busy = fetcher.state !== "idle";
   useResultToast(fetcher);
 
@@ -112,9 +121,19 @@ export function HandlingCard({
             className={styles.input}
             name="redirectUrl"
             placeholder="https://example.com/pages/not-available"
-            defaultValue={config.redirectUrl ?? ""}
+            value={redirectUrl}
+            onChange={(event) => setRedirectUrl(event.target.value)}
           />
           <SaveButton busy={busy} />
+          {defaultRedirect && (
+            <button
+              type="button"
+              className={styles.outlineButton}
+              onClick={() => setRedirectUrl(defaultRedirect)}
+            >
+              Use default
+            </button>
+          )}
         </div>
         <div style={{ marginTop: 12 }}>
           <Banner tone="warning">
@@ -184,6 +203,7 @@ export function HandlingCard({
           <div className={styles.radioList}>
             {HANDLING_OPTIONS.map((option) => {
               const isSelected = selected === option.value;
+              const isDisabled = disabledOptions.includes(option.value);
               return (
                 <div
                   key={option.value}
@@ -199,9 +219,13 @@ export function HandlingCard({
                       name="handling"
                       value={option.value}
                       checked={isSelected}
+                      disabled={isDisabled}
                       onChange={() => setSelected(option.value)}
                     />
-                    <span>{option.label}</span>
+                    <span className={isDisabled ? styles.muted : undefined}>
+                      {option.label}
+                      {isDisabled && ` (This option does not support ${blockerName})`}
+                    </span>
                   </label>
                   {isSelected && <div className={styles.radioBody}>{body[option.value]}</div>}
                 </div>
@@ -219,15 +243,18 @@ export function Pagination({
   total,
   page,
   pageCount,
+  prefix = "",
 }: {
   total: number;
   page: number;
   pageCount: number;
+  // Lets several paginated lists share one page's URL.
+  prefix?: string;
 }) {
   const [params] = useSearchParams();
   const hrefFor = (target: number) => {
     const next = new URLSearchParams(params);
-    next.set("page", String(target));
+    next.set(`${prefix}page`, String(target));
     return `?${next.toString()}`;
   };
   return (
@@ -261,9 +288,9 @@ export function Pagination({
 }
 
 // Search box that updates the "q" URL parameter, resetting to page 1.
-export function SearchBox({ placeholder }: { placeholder: string }) {
+export function SearchBox({ placeholder, prefix = "" }: { placeholder: string; prefix?: string }) {
   const [params, setParams] = useSearchParams();
-  const [value, setValue] = useState(params.get("q") ?? "");
+  const [value, setValue] = useState(params.get(`${prefix}q`) ?? "");
   return (
     <form
       className={styles.formRow}
@@ -271,10 +298,10 @@ export function SearchBox({ placeholder }: { placeholder: string }) {
       onSubmit={(event) => {
         event.preventDefault();
         const next = new URLSearchParams(params);
-        if (value.trim()) next.set("q", value.trim());
-        else next.delete("q");
-        next.delete("page");
-        setParams(next);
+        if (value.trim()) next.set(`${prefix}q`, value.trim());
+        else next.delete(`${prefix}q`);
+        next.delete(`${prefix}page`);
+        setParams(next, { preventScrollReset: true });
       }}
     >
       <input
