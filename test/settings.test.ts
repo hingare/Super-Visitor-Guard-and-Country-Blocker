@@ -1,59 +1,59 @@
 import { describe, expect, it } from "vitest";
-import { parseGeneralSettings } from "../app/lib/settings";
+import {
+  accessLinkUrl,
+  isChecked,
+  parsePagePath,
+  readSelectedPages,
+} from "../app/lib/settings";
 
-function form(values: Record<string, string>) {
-  const data = new FormData();
-  for (const [key, value] of Object.entries(values)) data.set(key, value);
-  return data;
-}
-
-describe("parseGeneralSettings", () => {
-  it("accepts valid input", () => {
-    const result = parseGeneralSettings(
-      form({
-        failOpenMs: "1500",
-        excludeAdmins: "on",
-        orderAction: "CANCELLED",
-        notifyEmail: " owner@example.com ",
-      }),
-    );
-    expect(result).toEqual({
+describe("parsePagePath", () => {
+  it("normalizes paths", () => {
+    expect(parsePagePath("/products/Hat/")).toEqual({
       ok: true,
-      data: {
-        failOpenMs: 1500,
-        excludeAdmins: true,
-        orderAction: "CANCELLED",
-        notifyEmail: "owner@example.com",
-      },
+      path: "/products/hat",
+    });
+    expect(parsePagePath("collections/all?page=2#top")).toEqual({
+      ok: true,
+      path: "/collections/all",
+    });
+    expect(parsePagePath("/")).toEqual({ ok: true, path: "/" });
+  });
+
+  it("takes the path from a full URL", () => {
+    expect(parsePagePath("https://demo.myshopify.com/pages/about-us")).toEqual({
+      ok: true,
+      path: "/pages/about-us",
     });
   });
 
-  it("treats a missing checkbox as unchecked and an empty email as none", () => {
-    const result = parseGeneralSettings(
-      form({ failOpenMs: "800", orderAction: "TAGGED", notifyEmail: "" }),
-    );
-    expect(result.ok && result.data.excludeAdmins).toBe(false);
-    expect(result.ok && result.data.notifyEmail).toBeNull();
+  it("rejects empty input and odd characters", () => {
+    expect(parsePagePath("  ").ok).toBe(false);
+    expect(parsePagePath("/pages/<script>").ok).toBe(false);
   });
+});
 
-  it("rejects out-of-range timeouts, unknown actions and bad emails", () => {
-    const result = parseGeneralSettings(
-      form({ failOpenMs: "100", orderAction: "DELETE", notifyEmail: "nope" }),
-    );
-    expect(result.ok).toBe(false);
-    if (!result.ok) {
-      expect(Object.keys(result.errors).sort()).toEqual([
-        "failOpenMs",
-        "notifyEmail",
-        "orderAction",
-      ]);
-    }
+describe("readSelectedPages", () => {
+  it("keeps only strings from stored JSON", () => {
+    expect(readSelectedPages(["/a", 3, null, "/b"])).toEqual(["/a", "/b"]);
+    expect(readSelectedPages({})).toEqual([]);
   });
+});
 
-  it("rejects a non-integer timeout", () => {
-    const result = parseGeneralSettings(
-      form({ failOpenMs: "1500.5", orderAction: "TAGGED" }),
+describe("isChecked", () => {
+  it("reads checkbox values", () => {
+    expect(isChecked("on")).toBe(true);
+    expect(isChecked("true")).toBe(true);
+    expect(isChecked(null)).toBe(false);
+  });
+});
+
+describe("accessLinkUrl", () => {
+  it("builds storefront links with the right parameter", () => {
+    expect(accessLinkUrl("demo.myshopify.com", "AUTO_WHITELIST", "abc")).toBe(
+      "https://demo.myshopify.com/?vg_whitelist=abc",
     );
-    expect(result.ok).toBe(false);
+    expect(accessLinkUrl("demo.myshopify.com", "ADMIN_INVITE", "xyz")).toBe(
+      "https://demo.myshopify.com/?vg_admin=xyz",
+    );
   });
 });

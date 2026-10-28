@@ -1,67 +1,58 @@
-// Parsing and validation for the Settings page form. Kept free of server
-// imports so it can be unit tested and reused by later phases.
+// Helpers for the General Settings page. Kept free of server imports so they
+// can be unit tested and reused by the storefront API later.
 
-export const ORDER_ACTIONS = ["TAGGED", "CANCELLED", "NOTIFIED"] as const;
-export type OrderActionValue = (typeof ORDER_ACTIONS)[number];
-
-export const FAIL_OPEN_MIN_MS = 500;
-export const FAIL_OPEN_MAX_MS = 5000;
-
-export interface GeneralSettingsInput {
-  failOpenMs: number;
-  excludeAdmins: boolean;
-  orderAction: OrderActionValue;
-  notifyEmail: string | null;
-}
-
-export type FieldErrors = Partial<Record<keyof GeneralSettingsInput, string>>;
-
-export type ParseResult =
-  | { ok: true; data: GeneralSettingsInput }
-  | { ok: false; errors: FieldErrors };
-
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+export const MAX_SELECTED_PAGES = 50;
 
 // Polaris checkboxes and switches submit "on" when checked and nothing when not.
 export function isChecked(value: FormDataEntryValue | null): boolean {
   return value === "on" || value === "true";
 }
 
-export function parseGeneralSettings(form: FormData): ParseResult {
-  const errors: FieldErrors = {};
+export type PagePathResult = { ok: true; path: string } | { ok: false; error: string };
 
-  const failOpenRaw = String(form.get("failOpenMs") ?? "").trim();
-  const failOpenMs = Number(failOpenRaw);
-  if (
-    failOpenRaw === "" ||
-    !Number.isInteger(failOpenMs) ||
-    failOpenMs < FAIL_OPEN_MIN_MS ||
-    failOpenMs > FAIL_OPEN_MAX_MS
-  ) {
-    errors.failOpenMs = `Enter a whole number between ${FAIL_OPEN_MIN_MS} and ${FAIL_OPEN_MAX_MS}.`;
+// Accepts a storefront path ("/products/hat") or a full store URL and
+// returns the normalized path without query string, hash or trailing slash.
+export function parsePagePath(input: string): PagePathResult {
+  const raw = input.trim();
+  if (raw === "") return { ok: false, error: "Enter a page path or URL." };
+
+  let path: string;
+  if (/^https?:\/\//i.test(raw)) {
+    try {
+      path = new URL(raw).pathname;
+    } catch {
+      return { ok: false, error: "Enter a valid URL." };
+    }
+  } else {
+    path = raw.startsWith("/") ? raw : `/${raw}`;
+    path = path.split(/[?#]/)[0];
   }
 
-  const orderAction = String(form.get("orderAction") ?? "");
-  if (!ORDER_ACTIONS.includes(orderAction as OrderActionValue)) {
-    errors.orderAction = "Choose what happens to a flagged order.";
+  path = path.replace(/\/{2,}/g, "/");
+  if (path.length > 1) path = path.replace(/\/+$/, "");
+  if (!/^\/[\w\-./%]*$/.test(path)) {
+    return { ok: false, error: "Use letters, numbers, dashes and slashes only." };
   }
+  return { ok: true, path: path.toLowerCase() };
+}
 
-  const notifyEmailRaw = String(form.get("notifyEmail") ?? "").trim();
-  if (notifyEmailRaw !== "" && !EMAIL_PATTERN.test(notifyEmailRaw)) {
-    errors.notifyEmail = "Enter a valid email address.";
-  }
+export function readSelectedPages(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
 
-  if (Object.keys(errors).length > 0) {
-    return { ok: false, errors };
-  }
+export const ACCESS_PARAM = {
+  ADMIN_INVITE: "vg_admin",
+  AUTO_WHITELIST: "vg_whitelist",
+} as const;
 
-  return {
-    ok: true,
-    data: {
-      failOpenMs,
-      excludeAdmins: isChecked(form.get("excludeAdmins")),
-      orderAction: orderAction as OrderActionValue,
-      notifyEmail: notifyEmailRaw === "" ? null : notifyEmailRaw,
-    },
-  };
+export function accessLinkUrl(
+  shopDomain: string,
+  kind: keyof typeof ACCESS_PARAM,
+  token: string,
+): string {
+  const url = new URL(`https://${shopDomain}/`);
+  url.searchParams.set(ACCESS_PARAM[kind], token);
+  return url.toString();
 }

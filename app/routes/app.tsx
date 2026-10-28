@@ -4,30 +4,48 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
-import { SECTIONS } from "../lib/sections";
+import { AppFrame } from "../components/AppFrame";
+
+const SHOP_IDENTITY_QUERY = `#graphql
+  query ShopIdentity {
+    shop {
+      name
+      shopOwnerName
+      myshopifyDomain
+    }
+  }`;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
 
-  // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  let ownerName = "";
+  let shopHandle = session.shop.replace(/\.myshopify\.com$/, "");
+  try {
+    const response = await admin.graphql(SHOP_IDENTITY_QUERY);
+    const json = await response.json();
+    ownerName = json.data?.shop?.shopOwnerName ?? json.data?.shop?.name ?? "";
+    const domain = json.data?.shop?.myshopifyDomain;
+    if (domain) shopHandle = domain.replace(/\.myshopify\.com$/, "");
+  } catch (error) {
+    console.error("Could not load shop identity", error);
+  }
+
+  return {
+    // eslint-disable-next-line no-undef
+    apiKey: process.env.SHOPIFY_API_KEY || "",
+    ownerName,
+    shopHandle,
+  };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, ownerName, shopHandle } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider apiKey={apiKey}>
-      <s-app-nav>
-        <s-link href="/app">Dashboard</s-link>
-        {SECTIONS.map((section) => (
-          <s-link key={section.slug} href={`/app/${section.slug}`}>
-            {section.title}
-          </s-link>
-        ))}
-        <s-link href="/app/settings">Settings</s-link>
-      </s-app-nav>
-      <Outlet />
+      <AppFrame ownerName={ownerName} shopHandle={shopHandle}>
+        <Outlet />
+      </AppFrame>
     </AppProvider>
   );
 }

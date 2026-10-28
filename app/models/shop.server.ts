@@ -1,18 +1,36 @@
+import type { Blocker } from "@prisma/client";
 import db from "../db.server";
 
-// Creates the shop with default settings and block page on first install,
-// and clears uninstalledAt when a merchant reinstalls.
-export async function ensureShop(shopDomain: string) {
-  return db.shop.upsert({
+export const BLOCKERS: Blocker[] = [
+  "COUNTRY",
+  "IP",
+  "BOT_VPN",
+  "BLOCK_LIST",
+  "REFERRER",
+  "ISP_ASN",
+  "URL",
+];
+
+// Creates the shop with default settings and one block-handling config per
+// blocker on first install, and clears uninstalledAt on reinstall.
+export async function ensureShop(shopDomain: string, ownerName?: string | null) {
+  const shop = await db.shop.upsert({
     where: { shopDomain },
     create: {
       shopDomain,
+      ownerName: ownerName ?? null,
       settings: { create: {} },
-      blockPage: { create: {} },
+      blockerConfigs: {
+        create: BLOCKERS.map((blocker) => ({ blocker })),
+      },
     },
-    update: { uninstalledAt: null },
+    update: {
+      uninstalledAt: null,
+      ...(ownerName ? { ownerName } : {}),
+    },
     include: { settings: true },
   });
+  return shop;
 }
 
 export async function getShopWithSettings(shopDomain: string) {
@@ -35,26 +53,62 @@ export async function markUninstalled(shopDomain: string) {
 }
 
 export async function deleteShopData(shopDomain: string) {
-  // Cascades to settings, rules, visits, order flags and usage records.
+  // Cascades to settings, rules, visitors, visits, order flags and the rest.
   await db.shop.deleteMany({ where: { shopDomain } });
   await db.session.deleteMany({ where: { shop: shopDomain } });
 }
 
-export function startOfTodayUtc(): Date {
-  const now = new Date();
-  return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+export interface DashboardCounts {
+  blockList: number;
+  fraudCancelled: number;
+  ispAsn: number;
+  ip: number;
+  country: number;
+  botVpn: number;
 }
 
-export async function getVisitStats(shopId: string, since: Date) {
-  const grouped = await db.visit.groupBy({
-    by: ["verdict"],
-    where: { shopId, createdAt: { gte: since } },
-    _count: { _all: true },
+// Numbers behind the six dashboard cards.
+export async function getDashboardCounts(
+  shopId: string,
+  since: Date,
+): Promise<DashboardCounts> {
+  const [grouped, fraudCancelled] = await Promise.all([
+    db.visit.groupBy({
+      by: ["blocker"],
+      where: { shopId, verdict: "BLOCKED", createdAt: { gte: since } },
+      _count: { _all: true },
+    }),
+    db.orderFlag.count({
+      where: { shopId, actionTaken: "CANCELLED", createdAt: { gte: since } },
+    }),
+  ]);
+  const count = (blocker: Blocker) =>
+    grouped.find((row) => row.blocker === blocker)?._count._all ?? 0;
+
+  return {
+    blockList: count("BLOCK_LIST"),
+    fraudCancelled,
+    ispAsn: count("ISP_ASN"),
+    ip: count("IP"),
+    country: count("COUNTRY"),
+    botVpn: count("BOT_VPN"),
+  };
+}
+
+export async function getRecentVisits(shopId: string, take = 5) {
+  return db.visit.findMany({
+    where: { shopId },
+    orderBy: { createdAt: "desc" },
+    take,
+    select: {
+      id: true,
+      createdAt: true,
+      ip: true,
+      city: true,
+      region: true,
+      country: true,
+      countryName: true,
+      verdict: true,
+    },
   });
-  const count = (verdict: string) =>
-    grouped.find((row) => row.verdict === verdict)?._count._all ?? 0;
-  const allowed = count("ALLOWED");
-  const blocked = count("BLOCKED");
-  const redirected = count("REDIRECTED");
-  return { total: allowed + blocked + redirected, allowed, blocked, redirected };
 }

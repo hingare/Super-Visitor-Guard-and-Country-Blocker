@@ -11,14 +11,14 @@ components, Prisma and PostgreSQL.
 
 | Phase | Scope | State |
 | --- | --- | --- |
-| 1 | Foundation: data model, navigation, Dashboard, Settings, app embed, webhooks | Done |
-| 2 | Verdict engine, Country / IP blocking, whitelist, redirects, blocked page | Next |
-| 3 | Bot, VPN, proxy, data center, ISP / ASN, referrer, URL blocking | |
-| 4 | Visit log and dashboard analytics | |
-| 5 | Content protection | |
-| 6 | Checkout validation function and fraud order handling | |
-| 7 | Billing: pay as you go and Premium | |
-| 8 | Hardening and App Store submission | |
+| 1 | Foundation: data model, sidebar layout, Dashboard, General Settings, App extension page, app embed, webhooks | Done |
+| 2 | Verdict engine and storefront script; Country Blocker, IP Blocker, Page White Lists; per-blocker block handling; Admin Access, Auto-Whitelist, Preload Mask and Selective Page Filtering on the storefront | Next |
+| 3 | Bot(VPN/Proxy) Blocker with organization and crawler lists, Referrer, ISP/ASN and URL blockers, Block Lists(Legacy) | |
+| 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | |
+| 5 | Content Protection, Geolocation Redirects | |
+| 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | |
+| 7 | Billing | |
+| 8 | Contact Us, FAQ, hardening and App Store submission | |
 
 ## Local development
 
@@ -50,12 +50,15 @@ After installing on the development store, open the Dashboard and use
 
 | Path | Purpose |
 | --- | --- |
-| `app/routes/app._index.tsx` | Dashboard: protection toggle, app embed status, visit stats |
-| `app/routes/app.settings.tsx` | General settings |
+| `app/components/AppFrame.tsx` | App frame: top bar, grouped sidebar, footer, shared card styles |
+| `app/routes/app._index.tsx` | Dashboard: report range, blocker counts, recent visits, feature cards |
+| `app/routes/app.settings.tsx` | General Settings: all filters switch, Admin Access, Preload Mask, Selective Page Filtering, Auto-Whitelist links |
+| `app/routes/app.extension.tsx` | App embed status and theme editor deep link |
 | `app/routes/app.$section.tsx` | Placeholder for pages built in later phases |
-| `app/lib/sections.ts` | Navigation pages and their phase |
+| `app/lib/sections.ts` | Sidebar groups, pages and their phase |
 | `app/lib/theme-embed.ts` | App embed status detection and theme editor deep link |
-| `app/models/shop.server.ts` | Shop lifecycle and visit stats |
+| `app/models/shop.server.ts` | Shop lifecycle and dashboard numbers |
+| `app/models/theme.server.ts` | Reads the live theme to check the app embed |
 | `app/routes/webhooks.*` | Uninstall and privacy compliance webhooks |
 | `extensions/visitor-guard` | Theme app embed that runs on every storefront page |
 | `prisma/schema.prisma` | Data model for all phases |

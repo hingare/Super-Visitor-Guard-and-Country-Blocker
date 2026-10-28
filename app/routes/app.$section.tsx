@@ -1,11 +1,13 @@
 import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { useLoaderData } from "react-router";
+import { Link, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import { authenticate } from "../shopify.server";
 import { findSection } from "../lib/sections";
+import { PageHeader, frameStyles as styles } from "../components/AppFrame";
+import { Card, EmptyState } from "../components/ui";
 
-// Placeholder for navigation pages that later phases replace with their own route.
+// Placeholder for sidebar pages that later phases replace with their own route.
 export const loader = async ({ request, params }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
 
@@ -20,16 +22,20 @@ export default function SectionPlaceholder() {
   const { section } = useLoaderData<typeof loader>();
 
   return (
-    <s-page heading={section.title}>
-      <s-section>
-        <s-stack direction="block" gap="base" alignItems="center">
-          <s-heading>Coming soon</s-heading>
-          <s-paragraph>{section.description}</s-paragraph>
-          <s-text color="subdued">Planned for phase {section.phase}.</s-text>
-          <s-button href="/app">Back to dashboard</s-button>
-        </s-stack>
-      </s-section>
-    </s-page>
+    <>
+      <PageHeader title={section.title} subtitle={section.description} />
+      <Card>
+        <EmptyState
+          title="Coming soon"
+          text={`This page is planned for phase ${section.phase}.`}
+        />
+        <div style={{ textAlign: "center", paddingBottom: 32 }}>
+          <Link className={styles.outlineButton} to="/app">
+            Back to dashboard
+          </Link>
+        </div>
+      </Card>
+    </>
   );
 }
 
