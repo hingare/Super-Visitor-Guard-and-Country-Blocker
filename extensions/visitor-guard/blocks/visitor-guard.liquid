@@ -1,0 +1,21 @@
+{% comment %}
+  App embed that runs on every storefront page. Phase 1 only exposes the
+  storefront context; phase 2 adds the anti-flicker style and verdict call.
+{% endcomment %}
+<script>
+  window.__visitorGuard = {
+    shop: {{ shop.permanent_domain | json }},
+    customerEmail: {{ customer.email | json }},
+    designMode: {{ request.design_mode | json }},
+    pageType: {{ request.page_type | json }}
+  };
+</script>
+
+{% schema %}
+{
+  "name": "Visitor guard",
+  "target": "head",
+  "javascript": "visitor-guard.js",
+  "settings": []
+}
+{% endschema %}

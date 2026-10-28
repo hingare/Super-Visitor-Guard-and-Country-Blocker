@@ -1,0 +1,205 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Managed by @shopify/shopify-app-session-storage-prisma. Do not rename fields.
+model Session {
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
+  refreshToken        String?
+  refreshTokenExpires DateTime?
+}
+
+enum Plan {
+  PAY_AS_YOU_GO
+  PREMIUM
+}
+
+enum CountryMode {
+  // Block visitors from the listed countries, allow everyone else.
+  BLOCK_LISTED
+  // Allow only visitors from the listed countries, block everyone else.
+  ALLOW_ONLY_LISTED
+}
+
+enum RuleType {
+  COUNTRY
+  STATE
+  CITY
+  IP
+  IP_RANGE
+  ISP
+  ASN
+  REFERRER
+  URL
+  EMAIL
+  NAME
+  PHONE
+}
+
+enum RuleAction {
+  BLOCK
+  ALLOW
+  REDIRECT
+}
+
+enum Verdict {
+  ALLOWED
+  BLOCKED
+  REDIRECTED
+}
+
+enum OrderAction {
+  TAGGED
+  CANCELLED
+  NOTIFIED
+}
+
+model Shop {
+  id                 String    @id @default(cuid())
+  shopDomain         String    @unique
+  enabled            Boolean   @default(true)
+  plan               Plan      @default(PAY_AS_YOU_GO)
+  // Public, non-secret key the storefront script sends to the verdict API.
+  publicKey          String    @unique @default(cuid())
+  installedAt        DateTime  @default(now())
+  uninstalledAt      DateTime?
+  trialEndsAt        DateTime?
+  billingCycleStart  DateTime  @default(now())
+  pageViewsThisCycle Int       @default(0)
+
+  settings     Settings?
+  blockPage    BlockPage?
+  rules        Rule[]
+  visits       Visit[]
+  orderFlags   OrderFlag[]
+  usageRecords UsageRecord[]
+}
+
+model Settings {
+  id                String      @id @default(cuid())
+  shopId            String      @unique
+  shop              Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  countryMode       CountryMode @default(BLOCK_LISTED)
+  blockBots         Boolean     @default(false)
+  allowGoodBots     Boolean     @default(true)
+  blockVpn          Boolean     @default(false)
+  blockProxy        Boolean     @default(false)
+  blockDatacenter   Boolean     @default(false)
+  // { rightClick, keyboardShortcuts, drag, imageCopy, textSelect }
+  contentProtection Json        @default("{}")
+  // Checkout validation toggles; the blacklists themselves are Rule rows.
+  blockZeroTotal    Boolean     @default(false)
+  checkoutMessage   String      @default("We are unable to process your order. Please contact the store.")
+  // Order protection: what to do when an order matches a block rule.
+  orderAction       OrderAction @default(TAGGED)
+  notifyEmail       String?
+  // How long the storefront waits for a verdict before letting the visitor in.
+  failOpenMs        Int         @default(1500)
+  // Never block visitors who are logged in to the Shopify admin preview.
+  excludeAdmins     Boolean     @default(true)
+  updatedAt         DateTime    @updatedAt
+}
+
+model Rule {
+  id          String     @id @default(cuid())
+  shopId      String
+  shop        Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  type        RuleType
+  action      RuleAction @default(BLOCK)
+  value       String
+  redirectUrl String?
+  note        String?
+  enabled     Boolean    @default(true)
+  hits        Int        @default(0)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@unique([shopId, type, value])
+  @@index([shopId, type])
+}
+
+model BlockPage {
+  id            String   @id @default(cuid())
+  shopId        String   @unique
+  shop          Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  title         String   @default("Access denied")
+  message       String   @default("Sorry, this store is not available in your region.")
+  bgColor       String   @default("#ffffff")
+  textColor     String   @default("#202223")
+  logoUrl       String?
+  customCss     String?
+  showVisitorIp Boolean  @default(false)
+  updatedAt     DateTime @updatedAt
+}
+
+model Visit {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  ip        String
+  country   String?
+  region    String?
+  city      String?
+  isp       String?
+  asn       Int?
+  isVpn     Boolean  @default(false)
+  isProxy   Boolean  @default(false)
+  isBot     Boolean  @default(false)
+  userAgent String?
+  device    String?
+  url       String?
+  referrer  String?
+  verdict   Verdict
+  // Human-readable reason, e.g. "Country: RU" or "IP range: 10.0.0.0/8".
+  reason    String?
+  ruleId    String?
+
+  @@index([shopId, createdAt])
+  @@index([shopId, verdict, createdAt])
+}
+
+model OrderFlag {
+  id          String      @id @default(cuid())
+  shopId      String
+  shop        Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  orderId     String
+  orderName   String?
+  reason      String
+  actionTaken OrderAction
+  createdAt   DateTime    @default(now())
+
+  @@unique([shopId, orderId])
+}
+
+model UsageRecord {
+  id                   String   @id @default(cuid())
+  shopId               String
+  shop                 Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  periodStart          DateTime
+  views                Int
+  chargedUsd           Decimal  @db.Decimal(10, 2)
+  shopifyUsageRecordId String?
+  createdAt            DateTime @default(now())
+
+  @@index([shopId, periodStart])
+}
