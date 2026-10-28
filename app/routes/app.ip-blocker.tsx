@@ -14,7 +14,6 @@ import { addRules, deleteRules, listRules, updateRule } from "../models/rules.se
 import { getBlockerConfig, saveHandling, type ActionResult } from "../models/blocker.server";
 import { parseBulkIps, parseIpRule } from "../lib/ip";
 import { isChecked } from "../lib/settings";
-import { APP_NAME } from "../lib/app-info";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
 import { Banner, Card, CardSection, EmptyState, StatusToggle } from "../components/ui";
 import { HandlingCard, Pagination, SearchBox, useResultToast } from "../components/blockers";
@@ -421,9 +420,9 @@ export default function IpBlocker() {
           <div style={{ marginTop: 12 }}>
             <Banner tone="warning">
               <p>
-                Recommended for cash-on-delivery stores: orders placed from a
-                blocked IP are deleted. {APP_NAME} starts acting on orders
-                when Order Filters arrive in a later update.
+                Recommended for cash-on-delivery stores: new orders placed
+                from a blocked IP are cancelled and deleted. Orders paid by
+                card are never deleted.
               </p>
             </Banner>
           </div>

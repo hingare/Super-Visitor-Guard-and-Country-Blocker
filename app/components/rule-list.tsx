@@ -34,6 +34,7 @@ interface Option {
 export interface RuleListCardProps {
   data: RuleListData;
   prefix?: string;
+  title?: string;
   // Left-hand help column; without it the list fills the card.
   help?: ReactNode;
   searchPlaceholder: string;
@@ -54,6 +55,7 @@ const MATCH_LABELS: Record<string, string> = { EXACT: "Exact Match", PARTIAL: "P
 export function RuleListCard({
   data,
   prefix = "",
+  title,
   help,
   searchPlaceholder,
   addLabel,
@@ -222,7 +224,7 @@ export function RuleListCard({
 
   return (
     <Card>
-      <CardSection>
+      <CardSection title={title}>
         {help ? (
           <div className={styles.twoColumn}>
             <div className={styles.columnHelp}>{help}</div>

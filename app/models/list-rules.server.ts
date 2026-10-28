@@ -3,8 +3,8 @@ import { addRules, deleteRules, listRules } from "./rules.server";
 import type { ActionResult } from "./blocker.server";
 import { isListRuleType, parseRuleValue, type ListRuleType } from "../lib/rule-specs";
 
-// Shared loader and action plumbing for the list cards on the Phase 3
-// blocker pages (see RuleListCard).
+// Shared loader and action plumbing for the list cards on the blocker and
+// order filter pages (see RuleListCard).
 
 export interface ListSpec {
   type: ListRuleType | ListRuleType[];

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { ReactNode } from "react";
-import { Link, useFetcher, useSearchParams } from "react-router";
+import { Link, useFetcher, useRevalidator, useSearchParams } from "react-router";
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { APP_NAME } from "../lib/app-info";
@@ -313,5 +313,19 @@ export function SearchBox({ placeholder, prefix = "" }: { placeholder: string; p
         onChange={(event) => setValue(event.target.value)}
       />
     </form>
+  );
+}
+
+export function ReloadButton() {
+  const revalidator = useRevalidator();
+  return (
+    <button
+      type="button"
+      className={styles.outlineButton}
+      disabled={revalidator.state === "loading"}
+      onClick={() => revalidator.revalidate()}
+    >
+      <s-icon type="refresh" /> Reload
+    </button>
   );
 }

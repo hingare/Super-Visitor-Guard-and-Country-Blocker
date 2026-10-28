@@ -3,7 +3,7 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Link, useFetcher, useLoaderData } from "react-router";
+import { Link, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import db from "../db.server";
@@ -11,22 +11,16 @@ import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
 import { getBlockerConfig, saveHandling, type ActionResult } from "../models/blocker.server";
 import { handleListIntent, loadList, type ListSpec } from "../models/list-rules.server";
-import { isChecked } from "../lib/settings";
+import { pickOrderSettings } from "../lib/order-settings";
+import { saveOrderSetting } from "../models/order-settings.server";
 import { APP_NAME } from "../lib/app-info";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
-import { Banner, Card, CardSection, StatusToggle } from "../components/ui";
-import { HandlingCard, useResultToast } from "../components/blockers";
+import { Banner } from "../components/ui";
+import { HandlingCard } from "../components/blockers";
+import { OrderSettingsCard } from "../components/order-settings";
 import { RuleListCard } from "../components/rule-list";
 
 const SPEC: ListSpec = { type: "VISITOR", list: "BLACKLIST" };
-
-const ORDER_SETTINGS = {
-  refundOnCancel: "Refund to customer when order cancelled.",
-  notifyOnCancel: "Notify me when an order cancelled.",
-  deleteCodOrders: "Delete order immediately (Only for COD orders).",
-} as const;
-
-type OrderSetting = keyof typeof ORDER_SETTINGS;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -43,11 +37,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     list,
     handling,
     visitors: Object.fromEntries(visitors.map((visitor) => [visitor.code, visitor])),
-    orderSettings: {
-      refundOnCancel: shop.settings.refundOnCancel,
-      notifyOnCancel: shop.settings.notifyOnCancel,
-      deleteCodOrders: shop.settings.deleteCodOrders,
-    },
+    orderSettings: pickOrderSettings(shop.settings),
   };
 };
 
@@ -57,16 +47,8 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
   const form = await request.formData();
 
   switch (form.get("intent")) {
-    case "orderSetting": {
-      const name = String(form.get("name"));
-      if (!(name in ORDER_SETTINGS)) return { ok: false, error: "Unknown setting." };
-      const enabled = isChecked(form.get("enabled"));
-      await db.settings.update({
-        where: { shopId: shop.id },
-        data: { [name as OrderSetting]: enabled },
-      });
-      return { ok: true, message: enabled ? "Setting enabled" : "Setting disabled" };
-    }
+    case "orderSetting":
+      return saveOrderSetting(shop.id, form);
     case "handling":
       return saveHandling(shop.id, "BLOCK_LIST", form);
     default:
@@ -76,8 +58,6 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
 
 export default function BlockLists() {
   const data = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<typeof action>();
-  useResultToast(fetcher);
 
   return (
     <>
@@ -137,32 +117,7 @@ export default function BlockLists() {
 
       <HandlingCard blockerName="block list" config={data.handling} />
 
-      <Card>
-        <CardSection title="Auto Cancel Order Settings">
-          <div style={{ display: "grid", gap: 12 }}>
-            {(Object.keys(ORDER_SETTINGS) as OrderSetting[]).map((name) => (
-              <StatusToggle
-                key={name}
-                name={name}
-                enabled={data.orderSettings[name]}
-                onToggle={(next) =>
-                  fetcher.submit(
-                    next
-                      ? { intent: "orderSetting", name, enabled: "on" }
-                      : { intent: "orderSetting", name },
-                    { method: "POST" },
-                  )
-                }
-                label={`${ORDER_SETTINGS[name]} (${data.orderSettings[name] ? "Enabled" : "Disabled"})`}
-              />
-            ))}
-          </div>
-          <p className={styles.helpText}>
-            {APP_NAME} starts cancelling orders when Order Filters arrive in a
-            later update; these choices are saved for it.
-          </p>
-        </CardSection>
-      </Card>
+      <OrderSettingsCard values={data.orderSettings} />
     </>
   );
 }

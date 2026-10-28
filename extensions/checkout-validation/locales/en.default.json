@@ -1,0 +1,4 @@
+{
+  "name": "Super Visitor Guard checkout validation",
+  "description": "Stops checkouts from buyers on the Customer Block Lists."
+}
