@@ -1,4 +1,4 @@
-# Visitor Guard (working name)
+# Super Visitor Guard and Country Blocker
 
 A Shopify app that blocks unwanted visitors and orders: country / state / city /
 IP / VPN / bot / ISP / referrer blocking, checkout validation, fraud order
@@ -34,7 +34,7 @@ npm run dev                   # shopify app dev
 ```
 
 After installing on the development store, open the Dashboard and use
-"Open theme editor" to switch on the **Visitor guard** app embed.
+"Open theme editor" to switch on the **Super Visitor Guard** app embed.
 
 ## Scripts
 

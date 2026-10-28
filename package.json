@@ -1,5 +1,5 @@
 {
-  "name": "visitor-guard-app",
+  "name": "super-visitor-guard",
   "private": true,
   "scripts": {
     "build": "react-router build",

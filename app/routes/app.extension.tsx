@@ -90,8 +90,8 @@ export default function ExtensionPage() {
               Customize on your live theme.
             </h3>
             <h3>
-              Step 2: Open App embeds in the left menu, switch on &quot;Visitor
-              guard&quot;, then click Save in the top right.
+              Step 2: Open App embeds in the left menu, switch on &quot;{APP_NAME}&quot;,
+              then click Save in the top right.
             </h3>
           </div>
         </CardSection>
