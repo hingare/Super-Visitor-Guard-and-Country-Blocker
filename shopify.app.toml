@@ -5,9 +5,10 @@ client_id = ""
 
 [access_scopes]
 # read_themes: check whether the app embed is on in the live theme.
-# read_orders, write_orders: tag or cancel orders that match block rules (phase 6).
+# read_orders, write_orders: cancel or delete orders that match Order Filters.
+# read_validations, write_validations: the Customer Block Lists checkout validation.
 # write_app_proxy: serve the storefront verdict API under /apps/super-visitor-guard.
-scopes = "read_themes,read_orders,write_orders,write_app_proxy"
+scopes = "read_themes,read_orders,write_orders,read_validations,write_validations,write_app_proxy"
 
 [app_proxy]
 # The theme embed asks for a verdict at /apps/super-visitor-guard/verdict.
@@ -28,6 +29,17 @@ api_version = "2026-10"
   [[webhooks.subscriptions]]
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
+
+  # Auto-cancel filters, Block Lists, IP Blocker order deletion.
+  # Handled by: /app/routes/webhooks.orders.create.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/create"
+  topics = ["orders/create"]
+
+  # Fraud Protect. Handled by: /app/routes/webhooks.orders.risk_assessment_changed.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/orders/risk_assessment_changed"
+  topics = ["orders/risk_assessment_changed"]
 
   # Mandatory compliance topics. Handled by: /app/routes/webhooks.compliance.tsx
   [[webhooks.subscriptions]]

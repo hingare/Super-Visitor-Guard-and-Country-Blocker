@@ -21,7 +21,9 @@
     masked: {{ vg_mask | json }},
     contentProtection: {% if vg_config.contentProtection %}true{% else %}false{% endif %},
     designMode: {{ request.design_mode | json }},
-    pageType: {{ request.page_type | json }}
+    pageType: {{ request.page_type | json }},
+    hasCart: {% if cart.item_count > 0 %}true{% else %}false{% endif %},
+    cartVisitor: {{ cart.attributes._vg_visitor | default: "" | json }}
   };
 </script>
 

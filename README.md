@@ -16,8 +16,8 @@ components, Prisma and PostgreSQL.
 | 3 | Bot(VPN/Proxy) Blocker with organization and crawler lists, Referrer, ISP/ASN and URL blockers, Block Lists(Legacy) | Done |
 | 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | Done |
 | 5 | Content Protection, Geolocation Redirects | Done |
-| 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | Next |
-| 7 | Billing | |
+| 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | Done |
+| 7 | Billing | Next |
 | 8 | Contact Us, FAQ, hardening and App Store submission | |
 
 ## Local development
@@ -78,6 +78,32 @@ crawler's own network.
 After installing on the development store, open the Dashboard and use
 "Open theme editor" to switch on the **Super Visitor Guard** app embed.
 
+## Order filters
+
+**Customer Block Lists** is a Shopify Function
+(`extensions/checkout-validation`, target `cart.validations.generate.run`).
+The admin page keeps one checkout validation on the shop up to date
+(`validationCreate` / `validationUpdate`) and stores the rules, error message
+and the $0 checkout switch in the validation's metafield
+(`$app:visitor_guard.checkout`). The function stops checkout when the buyer's
+email, phone, name or ZIP code matches a rule. The validation is listed in
+the store's checkout settings under checkout rules. `shopify app dev` and
+`shopify app deploy` build the function.
+
+**Auto-cancel filters**, **Block Lists** and the IP Blocker's delete option
+act in the `orders/create` webhook: matching orders are cancelled (refund
+and restock follow the Auto Cancel Order Settings) and, for cash-on-delivery
+orders, deleted when that is switched on. Blocked visitors are recognised by
+the `_vg_visitor` cart attribute the storefront script adds to carts with
+items. **Fraud Protect** acts in `orders/risk_assessment_changed`, cancelling
+high (and optionally medium) risk orders unless the buyer's email is
+whitelisted. Every action is logged on the page (`OrderFlag`).
+
+Order and checkout data include customer details, so the app needs
+**protected customer data** access (name, email, phone, address) under
+API access in the Partner Dashboard before these webhooks and the function
+receive those fields.
+
 ## Scripts
 
 | Command | What it does |
@@ -102,6 +128,10 @@ After installing on the development store, open the Dashboard and use
 | `app/lib/bots.ts`, `app/services/bots.server.ts` | Trusted crawler list and reverse DNS verification |
 | `app/routes/app.visitor-logs.tsx`, `app.ip-lookup.tsx` | Visitor records (filters, alias, block, clean) and IP lookup |
 | `app/routes/app.content-protection.tsx`, `app.geolocation-redirects.tsx` | Other Tools pages |
+| `app/routes/app.customer-block-lists.tsx`, `app.auto-cancel-filters.tsx`, `app.fraud-protect.tsx` | Checkout validation and Order Filters pages |
+| `extensions/checkout-validation` | Checkout validation function |
+| `app/lib/customer-match.ts`, `app/lib/order-filters.ts` | Buyer matching and order decisions; pure and unit tested |
+| `app/models/order-filters.server.ts`, `app/routes/webhooks.orders.*.tsx` | Order webhooks: cancel, delete, log |
 | `app/routes/proxy.verdict.tsx` | Storefront verdict API (app proxy) |
 | `app/lib/verdict.ts` | Decides allow or block; pure and unit tested |
 | `app/lib/ip.ts` | IPv4/IPv6 addresses, CIDR blocks and ranges |

@@ -111,6 +111,18 @@ enum OrderAction {
   REFUNDED
   DELETED
   NOTIFIED
+  // Checked but left alone (whitelisted, or a risk level with no action).
+  SKIPPED
+  // The cancel or delete call was rejected; see reason.
+  FAILED
+}
+
+// Which filter flagged the order.
+enum OrderSource {
+  FRAUD_PROTECT
+  AUTO_CANCEL
+  BLOCK_LIST
+  IP_BLOCKER
 }
 
 model Shop {
@@ -272,12 +284,16 @@ model OrderFlag {
   shop        Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
   orderId     String
   orderName   String?
+  email       String?
   riskLevel   String?
+  source      OrderSource @default(FRAUD_PROTECT)
   reason      String
   actionTaken OrderAction
   createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now()) @updatedAt
 
   @@unique([shopId, orderId])
+  @@index([shopId, source, createdAt])
 }
 
 enum AccessLinkKind {

@@ -79,7 +79,12 @@ export async function getDashboardCounts(
       _count: { _all: true },
     }),
     db.orderFlag.count({
-      where: { shopId, actionTaken: "CANCELLED", createdAt: { gte: since } },
+      where: {
+        shopId,
+        source: "FRAUD_PROTECT",
+        actionTaken: { in: ["CANCELLED", "DELETED"] },
+        createdAt: { gte: since },
+      },
     }),
   ]);
   const count = (blocker: Blocker) =>

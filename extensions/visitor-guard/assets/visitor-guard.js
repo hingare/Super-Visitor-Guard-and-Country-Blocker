@@ -163,9 +163,24 @@
     unmask();
   }
 
+  // Order filters recognise blocked visitors by this cart attribute, which
+  // Shopify copies onto the order. Only carts that already hold items are
+  // tagged, so browsing never creates a cart.
+  function tagCart(code) {
+    if (!code || !context.hasCart || context.cartVisitor === code) return;
+    var root = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) || "/";
+    fetch(root + "cart/update.js", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify({ attributes: { _vg_visitor: code } }),
+    }).catch(function () {});
+  }
+
   function apply(result) {
     window.clearTimeout(timer);
     if (result.visitorCode) store(STORAGE.visitor, result.visitorCode);
+    tagCart(result.visitorCode || read(STORAGE.visitor));
     if (result.adminToken) store(STORAGE.admin, result.adminToken);
     if (result.clearAdminToken) store(STORAGE.admin, null);
 

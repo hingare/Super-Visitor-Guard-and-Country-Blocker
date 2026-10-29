@@ -1,0 +1,38 @@
+query CartValidationsGenerateRunInput {
+  buyerJourney {
+    step
+  }
+  validation {
+    metafield(namespace: "$app:visitor_guard", key: "checkout") {
+      jsonValue
+    }
+  }
+  cart {
+    lines {
+      quantity
+    }
+    cost {
+      totalAmount {
+        amount
+      }
+    }
+    buyerIdentity {
+      email
+      phone
+      customer {
+        email
+        firstName
+        lastName
+        displayName
+      }
+    }
+    deliveryGroups {
+      deliveryAddress {
+        firstName
+        lastName
+        phone
+        zip
+      }
+    }
+  }
+}
