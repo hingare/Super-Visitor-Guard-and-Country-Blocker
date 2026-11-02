@@ -4,6 +4,9 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import { getShopWithSettings } from "../models/shop.server";
+import { BILLING_DISABLED, BILLING_TEST, syncBilling } from "../models/billing.server";
+import { planLabel } from "../lib/billing";
 import { AppFrame } from "../components/AppFrame";
 
 const SHOP_IDENTITY_QUERY = `#graphql
@@ -16,7 +19,18 @@ const SHOP_IDENTITY_QUERY = `#graphql
   }`;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { admin, session, billing, redirect } = await authenticate.admin(request);
+
+  // Every page needs a plan; the Plans page is where one is chosen.
+  const shop = await getShopWithSettings(session.shop);
+  let plan = BILLING_DISABLED ? shop.plan : null;
+  if (!BILLING_DISABLED) {
+    const { appSubscriptions } = await billing.check({ isTest: BILLING_TEST });
+    plan = await syncBilling(shop, appSubscriptions);
+    if (!plan && new URL(request.url).pathname !== "/app/plans") {
+      throw redirect("/app/plans");
+    }
+  }
 
   let ownerName = "";
   let shopHandle = session.shop.replace(/\.myshopify\.com$/, "");
@@ -35,15 +49,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     apiKey: process.env.SHOPIFY_API_KEY || "",
     ownerName,
     shopHandle,
+    planName: plan ? planLabel(plan) : null,
   };
 };
 
 export default function App() {
-  const { apiKey, ownerName, shopHandle } = useLoaderData<typeof loader>();
+  const { apiKey, ownerName, shopHandle, planName } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider apiKey={apiKey}>
-      <AppFrame ownerName={ownerName} shopHandle={shopHandle}>
+      <AppFrame ownerName={ownerName} shopHandle={shopHandle} planName={planName}>
         <Outlet />
       </AppFrame>
     </AppProvider>

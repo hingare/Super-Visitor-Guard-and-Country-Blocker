@@ -17,8 +17,8 @@ components, Prisma and PostgreSQL.
 | 4 | Shop Visitor Logs (visitor ids, aliases, quick block, filters), IP Address Lookup | Done |
 | 5 | Content Protection, Geolocation Redirects | Done |
 | 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | Done |
-| 7 | Billing | Next |
-| 8 | Contact Us, FAQ, hardening and App Store submission | |
+| 7 | Billing: Pay as you go and Premium plans, page-view metering, Plans page | Done |
+| 8 | Contact Us, FAQ, hardening and App Store submission | Next |
 
 ## Local development
 
@@ -104,6 +104,27 @@ Order and checkout data include customer details, so the app needs
 API access in the Partner Dashboard before these webhooks and the function
 receive those fields.
 
+## Billing
+
+Two plans, both through the Shopify Billing API (`app/shopify.server.ts`):
+
+- **Pay as you go**: a usage subscription capped at $4 per 30 days. The
+  first 500 storefront page views in each period are free, then every full
+  100 views is charged $0.20 as a usage record.
+- **Premium**: $3.99 every 30 days with a 7-day free trial, no view charges.
+
+Every admin page checks for an active subscription and sends the merchant to
+the Plans page (`/app/plans`, linked from the top bar) until one is approved.
+Without a plan the storefront filters do nothing. The verdict API counts each
+checked page view (Admin Access devices excluded) and charges in the
+background when a view completes a block of 100 (`app/models/billing.server.ts`).
+The `app_subscriptions/update` webhook keeps the plan state in step when a
+subscription is cancelled or frozen outside the app.
+
+Outside production all charges are test charges (`BILLING_TEST=true` forces
+that in production too). `BILLING_DISABLED=true` skips the plan gate and
+charges for local work without a Partner app.
+
 ## Scripts
 
 | Command | What it does |
@@ -137,6 +158,7 @@ receive those fields.
 | `app/lib/ip.ts` | IPv4/IPv6 addresses, CIDR blocks and ranges |
 | `app/models/rules.server.ts` | Rule storage and the cached per-shop verdict config |
 | `app/services/geoip.server.ts` | MaxMind location lookup |
+| `app/routes/app.plans.tsx`, `app/models/billing.server.ts`, `app/lib/billing.ts` | Plans page, subscription sync and usage charges, pricing rules |
 | `app/routes/app.$section.tsx` | Placeholder for pages built in later phases |
 | `app/lib/sections.ts` | Sidebar groups, pages and their phase |
 | `app/lib/theme-embed.ts` | App embed status detection and theme editor deep link |

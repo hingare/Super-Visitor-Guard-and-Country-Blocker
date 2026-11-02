@@ -4,6 +4,7 @@ import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
 import { getVerdictConfig, invalidateVerdictConfig } from "../models/rules.server";
+import { filteringAllowed, recordPageView } from "../models/billing.server";
 import { lookupGeo, lookupNetwork } from "../services/geoip.server";
 import { verifyBot } from "../services/bots.server";
 import { classifyUserAgent } from "../lib/bots";
@@ -33,7 +34,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const param = (name: string) => (url.searchParams.get(name) ?? "").slice(0, 2048);
 
   const shop = await getShopWithSettings(session.shop);
-  if (shop.uninstalledAt) return json({ verdict: "ALLOWED" });
+  // Without an active plan the storefront is left alone.
+  if (shop.uninstalledAt || !filteringAllowed(shop)) return json({ verdict: "ALLOWED" });
 
   const ip = normalizeIp(clientIp(request.headers) ?? "");
   const response: VerdictResponse = { verdict: "ALLOWED" };
@@ -203,6 +205,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         data: { hits: { increment: 1 } },
       });
     }
+    await recordPageView(shop);
   }
 
   return json(response);

@@ -13,6 +13,8 @@ import styles from "./app-frame.module.css";
 interface AppFrameProps {
   ownerName: string;
   shopHandle: string;
+  // Current plan, or null before one is chosen.
+  planName: string | null;
   children: ReactNode;
 }
 
@@ -26,7 +28,7 @@ function Logo() {
 }
 
 // The app's own frame: top bar, grouped sidebar, content column and footer.
-export function AppFrame({ ownerName, shopHandle, children }: AppFrameProps) {
+export function AppFrame({ ownerName, shopHandle, planName, children }: AppFrameProps) {
   const initial = (ownerName || shopHandle || "?").charAt(0).toUpperCase();
 
   return (
@@ -34,6 +36,10 @@ export function AppFrame({ ownerName, shopHandle, children }: AppFrameProps) {
       <header className={styles.topBar}>
         <Logo />
         <div className={styles.topBarRight}>
+          <NavLink className={styles.planLink} to="/app/plans">
+            <s-icon type="credit-card" />
+            {planName ? `Plan: ${planName}` : "Choose a plan"}
+          </NavLink>
           <a
             className={styles.reviewButton}
             href={REVIEW_URL}

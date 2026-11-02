@@ -135,8 +135,14 @@ model Shop {
   installedAt        DateTime  @default(now())
   uninstalledAt      DateTime?
   trialEndsAt        DateTime?
+  // Billing: the active app subscription, as last seen in Shopify.
+  billingActive      Boolean   @default(false)
+  subscriptionId     String?
+  usageLineItemId    String?
   billingCycleStart  DateTime  @default(now())
+  billingCycleEnd    DateTime?
   pageViewsThisCycle Int       @default(0)
+  chargedThisCycle   Decimal   @default(0) @db.Decimal(10, 2)
 
   settings       Settings?
   blockerConfigs BlockerConfig[]
@@ -335,5 +341,6 @@ model UsageRecord {
   shopifyUsageRecordId String?
   createdAt            DateTime @default(now())
 
+  @@unique([shopId, periodStart, views])
   @@index([shopId, periodStart])
 }
