@@ -13,6 +13,7 @@ import type { ActionResult } from "../models/blocker.server";
 import { handleListIntent, loadList, type ListSpec } from "../models/list-rules.server";
 import { saveOrderSetting } from "../models/order-settings.server";
 import { listOrderFlags } from "../models/order-flags.server";
+import { createFraudTestOrder } from "../services/orders.server";
 import { pickOrderSettings } from "../lib/order-settings";
 import { isChecked } from "../lib/settings";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
@@ -62,7 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
 
@@ -81,6 +82,17 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
     }
     case "orderSetting":
       return saveOrderSetting(shop.id, form);
+    case "testOrder": {
+      if (!shop.settings.fraudProtectEnabled) {
+        return { ok: false, error: "Turn on Fraud Protect first, then create the test order." };
+      }
+      const created = await createFraudTestOrder(admin);
+      if (!created.ok) return { ok: false, error: created.error };
+      return {
+        ok: true,
+        message: `Test order ${created.name} created as high risk. Reload in a few seconds to see how it was handled.`,
+      };
+    }
     default:
       return (await handleListIntent(shop.id, form, [WHITELIST])) ?? { ok: false, error: "Unknown action." };
   }
@@ -208,6 +220,22 @@ export default function FraudProtect() {
             <SearchBox placeholder="Search orders" prefix="o" />
             <LowRiskCheckbox checked={data.showLowRisk} />
             <ReloadButton />
+            <button
+              type="button"
+              className={styles.outlineButton}
+              disabled={fetcher.state !== "idle"}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Create a Shopify test order marked high risk? With your current settings Fraud Protect will act on it like a real risky order.",
+                  )
+                ) {
+                  fetcher.submit({ intent: "testOrder" }, { method: "POST" });
+                }
+              }}
+            >
+              Create Test Order
+            </button>
           </div>
           <OrderLogTable
             data={data.orders}

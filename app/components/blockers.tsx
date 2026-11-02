@@ -257,31 +257,28 @@ export function Pagination({
     next.set(`${prefix}page`, String(target));
     return `?${next.toString()}`;
   };
+  type Icon = "arrow-left" | "chevron-left" | "chevron-right" | "arrow-right";
+  const step = (target: number, enabled: boolean, icon: Icon, label: string) =>
+    enabled ? (
+      <Link className={styles.iconButton} to={hrefFor(target)} aria-label={label} title={label}>
+        <s-icon type={icon} />
+      </Link>
+    ) : (
+      <span className={styles.iconButton} aria-hidden="true">
+        <s-icon type={icon} tone="neutral" />
+      </span>
+    );
   return (
     <div className={styles.pagination}>
       <span>{total} records in total</span>
       <div className={styles.toolbar}>
-        {page > 1 ? (
-          <Link className={styles.iconButton} to={hrefFor(page - 1)} aria-label="Previous page">
-            <s-icon type="chevron-left" />
-          </Link>
-        ) : (
-          <span className={styles.iconButton} aria-hidden="true">
-            <s-icon type="chevron-left" tone="neutral" />
-          </span>
-        )}
+        {pageCount > 2 && step(1, page > 1, "arrow-left", "First page")}
+        {step(page - 1, page > 1, "chevron-left", "Previous page")}
         <span>
           Page {page} of {pageCount}
         </span>
-        {page < pageCount ? (
-          <Link className={styles.iconButton} to={hrefFor(page + 1)} aria-label="Next page">
-            <s-icon type="chevron-right" />
-          </Link>
-        ) : (
-          <span className={styles.iconButton} aria-hidden="true">
-            <s-icon type="chevron-right" tone="neutral" />
-          </span>
-        )}
+        {step(page + 1, page < pageCount, "chevron-right", "Next page")}
+        {pageCount > 2 && step(pageCount, page < pageCount, "arrow-right", "Last page")}
       </div>
     </div>
   );
