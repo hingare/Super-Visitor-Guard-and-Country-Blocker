@@ -19,6 +19,7 @@ components, Prisma and PostgreSQL.
 | 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | Done |
 | 7 | Billing: Pay as you go and Premium plans, page-view metering, Plans page | Done |
 | 8 | Contact Us, FAQ, cancelled-order emails, hardening (log rate limit, visit retention) | Done; App Store submission next |
+| 9 | Backup & Reports: rules backup and restore (CSV), visitor records CSV export, weekly email summary | Done |
 
 ## Local development
 
@@ -138,6 +139,22 @@ minute for each shop; past that, visitors are still filtered but not logged
 or counted. Visit records older than `VISIT_RETENTION_DAYS` (default 90) are
 deleted hourly.
 
+## Backup & Reports
+
+- **Rules backup**: Backup & Reports exports every rule (all blockers, white
+  lists, block lists and order filters) as one CSV with the columns `type`,
+  `list`, `match`, `value`, `comment`, `enabled`. Import adds to the current
+  rules or replaces them; each row is validated like the blocker pages do,
+  and invalid rows are skipped and listed. Cells that a spreadsheet would run
+  as a formula are written with a leading apostrophe.
+- **Visitor records export**: Export CSV on Shop Visitor Logs downloads the
+  records that match the current filters, newest first, up to 50,000 rows.
+- **Weekly email summary**: when turned on, an hourly job emails each shop a
+  summary of the past seven days (page views, blocked, redirected, bots, top
+  blocked countries, blocks per filter, handled orders). It needs SMTP;
+  `lastReportAt` is claimed before sending so several app instances never
+  send the same week twice.
+
 ## Scripts
 
 | Command | What it does |
@@ -174,6 +191,9 @@ deleted hourly.
 | `app/routes/app.plans.tsx`, `app/models/billing.server.ts`, `app/lib/billing.ts` | Plans page, subscription sync and usage charges, pricing rules |
 | `app/routes/app.contact.tsx`, `app.faq.tsx` | Contact Us form and FAQ |
 | `app/services/mailer.server.ts`, `app/services/retention.server.ts` | SMTP email, visit log cleanup |
+| `app/routes/app.backup-reports*.tsx`, `app/lib/rule-backup.ts`, `app/lib/csv.ts` | Rules backup and restore, CSV helpers |
+| `app/routes/app.visitor-logs.export.tsx` | Visitor records CSV export |
+| `app/services/weekly-report.server.ts`, `app/lib/weekly-report.ts` | Weekly email summary |
 | `app/lib/sections.ts` | Sidebar groups, pages and their phase |
 | `app/lib/theme-embed.ts` | App embed status detection and theme editor deep link |
 | `app/models/shop.server.ts` | Shop lifecycle and dashboard numbers |

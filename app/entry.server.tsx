@@ -6,8 +6,10 @@ import { type EntryContext } from "react-router";
 import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { startRetentionJob } from "./services/retention.server";
+import { startWeeklyReportJob } from "./services/weekly-report.server";
 
 startRetentionJob();
+startWeeklyReportJob();
 
 export const streamTimeout = 5000;
 

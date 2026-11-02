@@ -155,6 +155,13 @@ export const SECTION_GROUPS: SectionGroup[] = [
         description: "Look up location, provider and risk details for any IP address.",
         icon: "target",
       },
+      {
+        slug: "backup-reports",
+        title: "Backup & Reports",
+        description:
+          "Back up and restore all your rules, export visitor records, and get a weekly summary by email.",
+        icon: "export",
+      },
     ],
   },
   {
