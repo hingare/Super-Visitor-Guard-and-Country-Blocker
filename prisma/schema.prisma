@@ -282,6 +282,8 @@ model Visit {
   @@index([shopId, createdAt])
   @@index([shopId, verdict, createdAt])
   @@index([shopId, ip])
+  // Retention cleanup across all shops.
+  @@index([createdAt])
 }
 
 model OrderFlag {

@@ -17,10 +17,13 @@ export function isOrderSetting(name: unknown): name is OrderSetting {
 
 export type OrderSettingValues = Record<OrderSetting, boolean>;
 
-export function pickOrderSettings(settings: OrderSettingValues): OrderSettingValues {
+export function pickOrderSettings(
+  settings: OrderSettingValues & { notifyEmail: string | null },
+): OrderSettingValues & { notifyEmail: string | null } {
   return {
     refundOnCancel: settings.refundOnCancel,
     notifyOnCancel: settings.notifyOnCancel,
     deleteCodOrders: settings.deleteCodOrders,
+    notifyEmail: settings.notifyEmail,
   };
 }

@@ -18,7 +18,7 @@ components, Prisma and PostgreSQL.
 | 5 | Content Protection, Geolocation Redirects | Done |
 | 6 | Customer Block Lists (checkout validation function), Fraud Protect, Auto-cancel filters, order cancel/refund/delete settings | Done |
 | 7 | Billing: Pay as you go and Premium plans, page-view metering, Plans page | Done |
-| 8 | Contact Us, FAQ, hardening and App Store submission | Next |
+| 8 | Contact Us, FAQ, cancelled-order emails, hardening (log rate limit, visit retention) | Done; App Store submission next |
 
 ## Local development
 
@@ -125,6 +125,19 @@ Outside production all charges are test charges (`BILLING_TEST=true` forces
 that in production too). `BILLING_DISABLED=true` skips the plan gate and
 charges for local work without a Partner app.
 
+## Email, support and housekeeping
+
+Email goes out over SMTP when `SMTP_URL` (and `MAIL_FROM`) are set: the
+Contact Us form sends to `SUPPORT_EMAIL`, and "Notify me when an order
+cancelled" emails the address on the Auto Cancel Order Settings card, or
+the store owner. Without SMTP the Contact Us page shows the support address
+instead.
+
+The verdict API logs and bills at most 60 page views per visitor IP per
+minute for each shop; past that, visitors are still filtered but not logged
+or counted. Visit records older than `VISIT_RETENTION_DAYS` (default 90) are
+deleted hourly.
+
 ## Scripts
 
 | Command | What it does |
@@ -159,7 +172,8 @@ charges for local work without a Partner app.
 | `app/models/rules.server.ts` | Rule storage and the cached per-shop verdict config |
 | `app/services/geoip.server.ts` | MaxMind location lookup |
 | `app/routes/app.plans.tsx`, `app/models/billing.server.ts`, `app/lib/billing.ts` | Plans page, subscription sync and usage charges, pricing rules |
-| `app/routes/app.$section.tsx` | Placeholder for pages built in later phases |
+| `app/routes/app.contact.tsx`, `app.faq.tsx` | Contact Us form and FAQ |
+| `app/services/mailer.server.ts`, `app/services/retention.server.ts` | SMTP email, visit log cleanup |
 | `app/lib/sections.ts` | Sidebar groups, pages and their phase |
 | `app/lib/theme-embed.ts` | App embed status detection and theme editor deep link |
 | `app/models/shop.server.ts` | Shop lifecycle and dashboard numbers |

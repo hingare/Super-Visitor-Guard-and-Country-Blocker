@@ -8,7 +8,11 @@ import { ORDER_SETTINGS, ORDER_SETTING_NAMES, type OrderSettingValues } from "..
 type Result = { ok: true; message: string } | { ok: false; error: string };
 
 // Posts intent "orderSetting" to the page's action (see saveOrderSetting).
-export function OrderSettingsCard({ values }: { values: OrderSettingValues }) {
+export function OrderSettingsCard({
+  values,
+}: {
+  values: OrderSettingValues & { notifyEmail: string | null };
+}) {
   const fetcher = useFetcher<Result>();
   useResultToast(fetcher);
 
@@ -31,11 +35,30 @@ export function OrderSettingsCard({ values }: { values: OrderSettingValues }) {
             />
           ))}
         </div>
+        {values.notifyOnCancel && (
+          <fetcher.Form method="post" className={styles.formRow} style={{ marginTop: 12 }}>
+            <input type="hidden" name="intent" value="orderSetting" />
+            <input type="hidden" name="name" value="notifyEmail" />
+            <input
+              key={values.notifyEmail ?? ""}
+              name="email"
+              type="email"
+              className={styles.input}
+              defaultValue={values.notifyEmail ?? ""}
+              placeholder="Store owner's email"
+              aria-label="Notification email"
+              maxLength={200}
+            />
+            <button type="submit" className={styles.primaryButton}>
+              Save
+            </button>
+          </fetcher.Form>
+        )}
         <p className={styles.helpText}>
           These choices apply to every order the app cancels. Orders paid by
-          card are refunded through the original payment method. Email
-          notices for cancelled orders arrive in a later update; until then
-          each cancelled order carries a staff note explaining why.
+          card are refunded through the original payment method, and each
+          cancelled order carries a staff note explaining why. Notices go to
+          the email above, or to the store owner&apos;s email when it is empty.
         </p>
       </CardSection>
     </Card>

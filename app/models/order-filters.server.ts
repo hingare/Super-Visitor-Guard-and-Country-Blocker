@@ -12,6 +12,8 @@ import {
   type OrderPayload,
 } from "../lib/order-filters";
 import { cancelOrder, deleteOrder, getOrderSummary, waitForJob } from "../services/orders.server";
+import { sendMail } from "../services/mailer.server";
+import { APP_NAME } from "../lib/app-info";
 
 // What the orders/create and orders/risk_assessment_changed webhooks do.
 
@@ -39,6 +41,53 @@ async function recordFlag(
     create: { shopId, orderId, ...data },
     update: data,
   });
+}
+
+const SOURCE_LABELS: Record<OrderSource, string> = {
+  FRAUD_PROTECT: "Fraud Protect",
+  AUTO_CANCEL: "Auto-cancel filters",
+  BLOCK_LIST: "Block Lists",
+  IP_BLOCKER: "IP Blocker",
+};
+
+// "Notify me when an order cancelled": emails the address saved on the
+// shop, or the store owner's email, which is looked up once and saved.
+async function notifyMerchant(
+  admin: AdminApiContext,
+  settings: Settings,
+  order: { name: string | null; id: string; action: OrderAction; source: OrderSource; reason: string },
+) {
+  if (!settings.notifyOnCancel || (order.action !== "CANCELLED" && order.action !== "DELETED")) return;
+  try {
+    let to = settings.notifyEmail;
+    if (!to) {
+      const response = await admin.graphql(`#graphql
+        query ShopOwnerEmail {
+          shop {
+            email
+          }
+        }`);
+      const { data } = await response.json();
+      to = data?.shop?.email ?? null;
+      if (to) await db.settings.update({ where: { id: settings.id }, data: { notifyEmail: to } });
+    }
+    if (!to) return;
+    const label = order.name ?? order.id;
+    await sendMail({
+      to,
+      subject: `${APP_NAME}: order ${label} was ${order.action === "DELETED" ? "cancelled and deleted" : "cancelled"}`,
+      text: [
+        `${SOURCE_LABELS[order.source]} acted on order ${label}.`,
+        "",
+        `Why: ${order.reason}`,
+        `What happened: ${order.action === "DELETED" ? "cancelled and deleted" : "cancelled"}`,
+        "",
+        `You can change these settings under Auto Cancel Order Settings in ${APP_NAME}.`,
+      ].join("\n"),
+    });
+  } catch (error) {
+    console.error(`Could not send the cancelled-order notice for ${order.id}`, error);
+  }
 }
 
 // Cancels the order with the merchant's refund and restock choices, then
@@ -125,6 +174,13 @@ export async function processNewOrder(
     reason: result.error ? `${decision.reason}. ${result.error}` : decision.reason,
     actionTaken: result.action,
   });
+  await notifyMerchant(admin, shop.settings, {
+    name: facts.orderName,
+    id: facts.orderId,
+    action: result.action,
+    source: decision.source,
+    reason: decision.reason,
+  });
 }
 
 export interface RiskPayload {
@@ -179,5 +235,12 @@ export async function processRiskChange(
     source: "FRAUD_PROTECT",
     reason: "error" in result && result.error ? `${decision.reason}. ${result.error}` : decision.reason,
     actionTaken: result.action,
+  });
+  await notifyMerchant(admin, shop.settings, {
+    name: order.name,
+    id: orderId,
+    action: result.action,
+    source: "FRAUD_PROTECT",
+    reason: decision.reason,
   });
 }
