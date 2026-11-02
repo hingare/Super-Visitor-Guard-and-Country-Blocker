@@ -61,6 +61,22 @@
   text-decoration: none;
 }
 
+.planLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border: 1px solid var(--vg-border);
+  border-radius: 4px;
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.planLink:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .stars {
   color: #ffb547;
   letter-spacing: 2px;

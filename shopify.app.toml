@@ -30,6 +30,11 @@ api_version = "2026-10"
   topics = [ "app/scopes_update" ]
   uri = "/webhooks/app/scopes_update"
 
+  # Plan changes made outside the app. Handled by: /app/routes/webhooks.app_subscriptions.update.tsx
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app_subscriptions/update"
+  topics = ["app_subscriptions/update"]
+
   # Auto-cancel filters, Block Lists, IP Blocker order deletion.
   # Handled by: /app/routes/webhooks.orders.create.tsx
   [[webhooks.subscriptions]]
