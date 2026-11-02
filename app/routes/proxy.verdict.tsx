@@ -43,7 +43,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   // Without an active plan the storefront is left alone.
   if (shop.uninstalledAt || !filteringAllowed(shop)) return json({ verdict: "ALLOWED" });
 
-  const ip = normalizeIp(clientIp(request.headers) ?? "");
+  // Outside production, vg_test_* parameters stand in for the visitor's IP
+  // and the GeoIP data, so filters can be tried from one computer.
+  // eslint-disable-next-line no-undef
+  const testing = process.env.NODE_ENV !== "production";
+  const ip =
+    (testing && normalizeIp(param("vg_test_ip"))) || normalizeIp(clientIp(request.headers) ?? "");
   const response: VerdictResponse = { verdict: "ALLOWED" };
 
   // Admin Access Mode: an invitation token in the URL turns it on for this
@@ -95,9 +100,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  // Outside production, vg_test_* parameters stand in for the GeoIP data.
-  // eslint-disable-next-line no-undef
-  const testing = process.env.NODE_ENV !== "production";
   const devCountry = testing ? param("vg_test_country") : "";
   const [geo, lookedUpNetwork] = await Promise.all([
     devCountry

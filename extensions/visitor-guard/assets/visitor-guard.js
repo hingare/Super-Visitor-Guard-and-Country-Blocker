@@ -216,6 +216,12 @@
   });
   if (inviteToken) query.set("vg_admin", inviteToken);
   if (whitelistToken) query.set("vg_whitelist", whitelistToken);
+  // Test parameters (vg_test_country, vg_test_ip, ...) are passed on so a
+  // development store can try out the filters; the server ignores them in
+  // production.
+  params.forEach(function (value, key) {
+    if (key.indexOf("vg_test_") === 0) query.set(key, value.slice(0, 100));
+  });
 
   fetch(context.proxyPath + "/verdict?" + query.toString(), {
     credentials: "same-origin",

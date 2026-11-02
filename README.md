@@ -27,12 +27,20 @@ Requirements: Node 22.12+, PostgreSQL 14+, Shopify CLI, a Partner account and
 a development store.
 
 ```shell
-cp .env.example .env          # set DATABASE_URL and GEOIP_CITY_DB
+cp .env.example .env          # local defaults: Docker DB, Mailpit, billing off
 npm install
+npm run services:up           # PostgreSQL + Mailpit (docker-compose.dev.yml)
 npx prisma migrate deploy
 npm run config:link           # connect to your app in the Partner Dashboard
+npm run check:local           # checks DB, migrations, GeoIP, SMTP, app link
 npm run dev                   # shopify app dev
+npm run seed:demo             # optional demo data (after opening the app once)
 ```
+
+Full manual test guide (Bengali), with test parameters (`vg_test_country`,
+`vg_test_ip`, `vg_test_vpn`, `vg_test_org`, `vg_test_asn`) and a page-by-page
+checklist: [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md). Emails sent locally
+land in Mailpit at http://localhost:8025.
 
 Visitor locations come from a MaxMind GeoLite2-City (free, needs a MaxMind
 account) or GeoIP2-City database. Download the `.mmdb` file and point
