@@ -196,6 +196,11 @@ model Settings {
   // Content Protection
   contentProtectionEnabled Boolean @default(false)
 
+  // Weekly email summary
+  weeklyReportEnabled Boolean   @default(false)
+  reportEmail         String?
+  lastReportAt        DateTime?
+
   updatedAt DateTime @updatedAt
 }
 

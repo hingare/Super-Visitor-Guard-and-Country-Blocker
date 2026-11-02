@@ -5,6 +5,7 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { Link, useFetcher, useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import { useAppBridge } from "@shopify/app-bridge-react";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 import db from "../db.server";
@@ -16,6 +17,7 @@ import { blockedVisitorCodes, listVisits } from "../models/visits.server";
 import { pageTypeLabel, readVisitFilters } from "../lib/visit-filters";
 import { flagEmoji, timeAgo } from "../lib/format";
 import { isVisitorCode } from "../lib/storefront";
+import { downloadFile } from "../lib/download";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
 import { Banner, Card, ContactUsButton, EmptyState } from "../components/ui";
 import { Pagination, useResultToast } from "../components/blockers";
@@ -226,7 +228,24 @@ export default function VisitorLogs() {
   const revalidator = useRevalidator();
   const fetcher = useFetcher<typeof action>();
   const [showInfo, setShowInfo] = useState(true);
+  const shopify = useAppBridge();
+  const [exporting, setExporting] = useState(false);
+  const [searchParams] = useSearchParams();
   useResultToast(fetcher);
+
+  const exportCsv = async () => {
+    const params = new URLSearchParams(searchParams);
+    params.delete("page");
+    setExporting(true);
+    try {
+      await downloadFile(`/app/visitor-logs/export?${params}`, "visitor-records.csv");
+    } catch (error) {
+      console.error(error);
+      shopify.toast.show("Could not export the records", { isError: true });
+    } finally {
+      setExporting(false);
+    }
+  };
   const blocked = new Set(data.blockedCodes);
 
   return (
@@ -267,6 +286,14 @@ export default function VisitorLogs() {
               onClick={() => revalidator.revalidate()}
             >
               <s-icon type="refresh" /> Reload
+            </button>
+            <button
+              type="button"
+              className={styles.outlineButton}
+              onClick={exportCsv}
+              disabled={exporting || data.total === 0}
+            >
+              <s-icon type="export" /> {exporting ? "Exporting..." : "Export CSV"}
             </button>
             <button
               type="button"

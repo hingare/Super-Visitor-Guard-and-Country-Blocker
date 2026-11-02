@@ -51,3 +51,28 @@ export async function blockedVisitorCodes(shopId: string, codes: string[]) {
   });
   return new Set(rules.map((rule) => rule.value));
 }
+
+// Most rows a single CSV export holds; newer visits come first.
+export const VISIT_EXPORT_LIMIT = 50_000;
+const EXPORT_BATCH = 2_000;
+
+// Every visit that matches the filters, newest first, read in batches.
+export async function* visitsForExport(shopId: string, filters: VisitFilters) {
+  const where = visitWhere(shopId, filters);
+  let cursor: string | undefined;
+  let sent = 0;
+  while (sent < VISIT_EXPORT_LIMIT) {
+    const batch = await db.visit.findMany({
+      where,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: Math.min(EXPORT_BATCH, VISIT_EXPORT_LIMIT - sent),
+      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
+      include: { visitor: { select: { code: true, alias: true } } },
+    });
+    if (batch.length === 0) return;
+    yield batch;
+    sent += batch.length;
+    cursor = batch[batch.length - 1].id;
+    if (batch.length < EXPORT_BATCH) return;
+  }
+}
