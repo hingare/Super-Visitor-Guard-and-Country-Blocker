@@ -5,6 +5,7 @@ import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
 import { getVerdictConfig, invalidateVerdictConfig } from "../models/rules.server";
 import { filteringAllowed, recordPageView } from "../models/billing.server";
+import { RateLimiter } from "../lib/rate-limit";
 import { lookupGeo, lookupNetwork } from "../services/geoip.server";
 import { verifyBot } from "../services/bots.server";
 import { classifyUserAgent } from "../lib/bots";
@@ -22,6 +23,11 @@ import {
 // Storefront verdict API, reached through the app proxy at
 // /apps/super-visitor-guard/verdict. Shopify signs every proxied request,
 // which authenticate.public.appProxy verifies.
+
+// Page views per visitor IP and shop each minute that are logged and
+// counted for billing. Beyond it the verdict still applies, but the visit is
+// neither recorded nor billed, so a flood cannot fill the log or the bill.
+const logLimiter = new RateLimiter(60, 60_000);
 
 const json = (body: VerdictResponse) =>
   Response.json(body, { headers: { "Cache-Control": "no-store" } });
@@ -167,7 +173,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   // Record the visit. Admin traffic is not logged.
-  if (!adminAccess && ip) {
+  if (!adminAccess && ip && logLimiter.hit(`${shop.id}:${ip}`)) {
     const visitor = await db.visitor.upsert({
       where: { shopId_code: { shopId: shop.id, code } },
       create: { shopId: shop.id, code, lastIp: ip },
