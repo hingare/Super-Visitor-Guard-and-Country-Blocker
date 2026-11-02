@@ -18,7 +18,12 @@
     "graphql-codegen": "graphql-codegen",
     "vite": "vite",
     "typecheck": "react-router typegen && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "services:up": "docker compose -f docker-compose.dev.yml up -d",
+    "services:down": "docker compose -f docker-compose.dev.yml down",
+    "check:local": "node scripts/check-local.mjs",
+    "seed:demo": "node scripts/seed-demo.mjs",
+    "services:reset": "docker compose -f docker-compose.dev.yml down -v"
   },
   "type": "module",
   "engines": {

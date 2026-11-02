@@ -1,0 +1,30 @@
+# Local services for development and manual testing:
+#   docker compose -f docker-compose.dev.yml up -d   (or: npm run services:up)
+# PostgreSQL on localhost:5432 (user/password/database: app/app/app) and
+# Mailpit, a local inbox that catches every email the app sends:
+# SMTP on localhost:1025, web inbox on http://localhost:8025.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+      POSTGRES_DB: app
+    ports:
+      - "5432:5432"
+    volumes:
+      - vg-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d app"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  mail:
+    image: axllent/mailpit:v1.21
+    ports:
+      - "1025:1025"
+      - "8025:8025"
+
+volumes:
+  vg-postgres:
