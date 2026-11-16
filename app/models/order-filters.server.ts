@@ -7,6 +7,7 @@ import { toCustomerRules } from "../lib/checkout-validation";
 import {
   decideOrder,
   decideRisk,
+  orderNeedsAnotherLook,
   orderFacts,
   parseRiskLevel,
   type OrderPayload,
@@ -142,8 +143,9 @@ export async function processNewOrder(
   const existing = await db.orderFlag.findUnique({
     where: { shopId_orderId: { shopId: shop.id, orderId: facts.orderId } },
   });
-  // Webhooks can arrive more than once.
-  if (existing && existing.source !== "FRAUD_PROTECT" && existing.actionTaken !== "FAILED") return;
+  // Webhooks can arrive more than once, and Fraud Protect may already have
+  // cancelled the order. Only a skipped or failed attempt is tried again.
+  if (existing && !orderNeedsAnotherLook(existing)) return;
 
   const [verdictConfig, autoCancel] = await Promise.all([
     getVerdictConfig(shop.id, shop.settings),

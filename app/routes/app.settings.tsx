@@ -11,6 +11,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
+import { createAccessLink } from "../models/access-links.server";
 import { invalidateVerdictConfig } from "../models/rules.server";
 import { syncStorefrontConfig } from "../models/storefront-config.server";
 import { APP_NAME } from "../lib/app-info";
@@ -41,9 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     (await db.accessLink.findFirst({
       where: { shopId: shop.id, kind: "ADMIN_INVITE", label: OWNER_LINK_LABEL },
     })) ??
-    (await db.accessLink.create({
-      data: { shopId: shop.id, kind: "ADMIN_INVITE", label: OWNER_LINK_LABEL },
-    }));
+    (await createAccessLink(shop.id, "ADMIN_INVITE", OWNER_LINK_LABEL));
   const links = await db.accessLink.findMany({
     where: { shopId: shop.id, NOT: { id: ownerLink.id } },
     orderBy: { createdAt: "desc" },
@@ -145,7 +144,7 @@ async function runAction(
     }
     case "createLink": {
       const kind = form.get("kind") === "ADMIN_INVITE" ? "ADMIN_INVITE" : "AUTO_WHITELIST";
-      await db.accessLink.create({ data: { shopId: shop.id, kind } });
+      await createAccessLink(shop.id, kind);
       return { ok: true, message: "Link created" };
     }
     case "deleteLink": {

@@ -4,6 +4,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
 import { authenticate } from "../shopify.server";
+import db from "../db.server";
 import { getShopWithSettings } from "../models/shop.server";
 import { BILLING_DISABLED, BILLING_TEST, syncBilling } from "../models/billing.server";
 import { planLabel } from "../lib/billing";
@@ -14,7 +15,6 @@ const SHOP_IDENTITY_QUERY = `#graphql
     shop {
       name
       shopOwnerName
-      myshopifyDomain
     }
   }`;
 
@@ -32,16 +32,19 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  let ownerName = "";
-  let shopHandle = session.shop.replace(/\.myshopify\.com$/, "");
-  try {
-    const response = await admin.graphql(SHOP_IDENTITY_QUERY);
-    const json = await response.json();
-    ownerName = json.data?.shop?.shopOwnerName ?? json.data?.shop?.name ?? "";
-    const domain = json.data?.shop?.myshopifyDomain;
-    if (domain) shopHandle = domain.replace(/\.myshopify\.com$/, "");
-  } catch (error) {
-    console.error("Could not load shop identity", error);
+  // The owner's name is looked up once and kept with the shop, so later
+  // page loads need no extra Admin API call.
+  let ownerName = shop.ownerName ?? "";
+  const shopHandle = session.shop.replace(/\.myshopify\.com$/, "");
+  if (!ownerName) {
+    try {
+      const response = await admin.graphql(SHOP_IDENTITY_QUERY);
+      const json = await response.json();
+      ownerName = json.data?.shop?.shopOwnerName ?? json.data?.shop?.name ?? "";
+      if (ownerName) await db.shop.update({ where: { id: shop.id }, data: { ownerName } });
+    } catch (error) {
+      console.error("Could not load shop identity", error);
+    }
   }
 
   return {

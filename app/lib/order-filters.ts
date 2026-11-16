@@ -83,7 +83,7 @@ export function orderFacts(order: OrderPayload): OrderFacts | null {
     ip: ip ? parseIp(ip) : null,
     ipText: ip ? normalizeIp(ip) : null,
     cancelled: Boolean(order.cancelled_at),
-    manualPayment: gateways.every((gateway) => MANUAL_GATEWAY.test(gateway)),
+    manualPayment: gateways.length > 0 && gateways.every((gateway) => MANUAL_GATEWAY.test(gateway)),
     cashOnDelivery: gateways.some((gateway) => COD_GATEWAY.test(gateway)),
   };
 }
@@ -147,6 +147,14 @@ export function decideOrder(facts: OrderFacts, config: OrderFilterConfig): Order
     };
   }
   return null;
+}
+
+// Whether orders/create should look at an order that already has a log
+// entry. Fraud Protect's "skipped" entries do not stop the other filters;
+// anything already cancelled or deleted is finished.
+export function orderNeedsAnotherLook(existing: { source: string; actionTaken: string }): boolean {
+  if (existing.actionTaken === "FAILED") return true;
+  return existing.source === "FRAUD_PROTECT" && existing.actionTaken === "SKIPPED";
 }
 
 export type RiskLevel = "HIGH" | "MEDIUM" | "LOW" | "NONE" | "PENDING";

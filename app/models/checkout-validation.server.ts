@@ -35,7 +35,7 @@ export async function syncCheckoutValidation(
   const [settings, rules] = await Promise.all([
     db.settings.findUniqueOrThrow({ where: { shopId } }),
     db.rule.findMany({
-      where: { shopId, type: { in: [...CHECKOUT_RULE_TYPES] } },
+      where: { shopId, enabled: true, type: { in: [...CHECKOUT_RULE_TYPES] } },
       orderBy: { createdAt: "desc" },
       take: MAX_CHECKOUT_RULES,
       select: { type: true, value: true, matchType: true },

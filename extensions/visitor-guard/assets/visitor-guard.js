@@ -146,14 +146,12 @@
     card.appendChild(el("p", "margin:0;font-size:16px;line-height:1.6;opacity:.85;", action.message));
     page.appendChild(card);
 
-    var mount = function () {
-      document.body.innerHTML = "";
-      document.body.appendChild(page);
-      document.title = action.header;
-      unmask();
-    };
-    if (document.body) mount();
-    else document.addEventListener("DOMContentLoaded", mount);
+    // window.stop() can end parsing before the body exists; make one then.
+    if (!document.body) document.documentElement.appendChild(document.createElement("body"));
+    document.body.innerHTML = "";
+    document.body.appendChild(page);
+    document.title = action.header;
+    unmask();
   }
 
   function hideSection(selector) {
@@ -164,17 +162,48 @@
   }
 
   // Order filters recognise blocked visitors by this cart attribute, which
-  // Shopify copies onto the order. Only carts that already hold items are
-  // tagged, so browsing never creates a cart.
-  function tagCart(code) {
-    if (!code || !context.hasCart || context.cartVisitor === code) return;
+  // Shopify copies onto the order. Only carts that hold items are tagged, so
+  // browsing never creates a cart.
+  var taggedCode = context.cartVisitor || "";
+
+  function sendCartTag(code) {
+    if (taggedCode === code) return;
+    taggedCode = code;
     var root = (window.Shopify && window.Shopify.routes && window.Shopify.routes.root) || "/";
     fetch(root + "cart/update.js", {
       method: "POST",
       credentials: "same-origin",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify({ attributes: { _vg_visitor: code } }),
-    }).catch(function () {});
+    }).catch(function () {
+      taggedCode = "";
+    });
+  }
+
+  // An empty cart is tagged as soon as the theme adds the first item without
+  // a page load (cart drawers, "Buy it now" buttons), so going straight to
+  // checkout still carries the visitor id.
+  function tagOnFirstAdd(code) {
+    if (!window.PerformanceObserver) return;
+    try {
+      var observer = new PerformanceObserver(function (list) {
+        var added = list.getEntries().some(function (entry) {
+          return /\/cart\/add(\.js)?(\?|$)/.test(entry.name);
+        });
+        if (!added) return;
+        observer.disconnect();
+        sendCartTag(code);
+      });
+      observer.observe({ type: "resource" });
+    } catch (error) {
+      // Not supported; the cart is tagged on the next page load instead.
+    }
+  }
+
+  function tagCart(code) {
+    if (!code) return;
+    if (context.hasCart) sendCartTag(code);
+    else tagOnFirstAdd(code);
   }
 
   function apply(result) {
