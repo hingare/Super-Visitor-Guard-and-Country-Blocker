@@ -67,6 +67,8 @@ export interface GeoRedirectRule {
   id: string;
   countries: string[];
   targetUrl: string;
+  keepPath?: boolean;
+  askFirst?: boolean;
 }
 
 export interface BotInfo {

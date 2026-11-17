@@ -22,7 +22,9 @@ import {
   parsePagePath,
   readSelectedPages,
 } from "../lib/settings";
+import { parseBlockPageLook, pickBlockPageLook } from "../lib/block-page-look";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
+import { BlockPageLookCard } from "../components/block-page-look";
 import {
   Banner,
   Card,
@@ -61,6 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     filtersEnabled: shop.settings.filtersEnabled,
     preloadMask: shop.settings.preloadMask,
+    blockPageLook: pickBlockPageLook(shop.settings),
     selectedPages: readSelectedPages(shop.settings.selectedPages),
     adminAccessUrl: accessLinkUrl(session.shop, "ADMIN_INVITE", ownerLink.token),
     inviteLinks: withUrl("ADMIN_INVITE"),
@@ -116,6 +119,14 @@ async function runAction(
         ok: true,
         message: preloadMask ? "Preload Mask enabled" : "Preload Mask disabled",
       };
+    }
+    case "blockPageLook": {
+      const parsed = parseBlockPageLook(form);
+      if (!parsed.ok) return parsed;
+      // Turning branding off keeps the saved logo and color for later.
+      const data = parsed.value.blockPageBranding ? parsed.value : { blockPageBranding: false };
+      await db.settings.update({ where: { shopId: shop.id }, data });
+      return { ok: true, message: "Block page look saved" };
     }
     case "addPage": {
       const parsed = parsePagePath(String(form.get("path") ?? ""));
@@ -320,6 +331,8 @@ export default function GeneralSettings() {
           />
         </CardSection>
       </Card>
+
+      <BlockPageLookCard look={data.blockPageLook} />
 
       <Card>
         <CardSection title="Selective Page Filtering">

@@ -51,7 +51,12 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
     case "update": {
       const parsed = parseGeoRedirectForm(form);
       if (!parsed.ok) return parsed;
-      const data = { countries: parsed.countries, targetUrl: parsed.targetUrl };
+      const data = {
+        countries: parsed.countries,
+        targetUrl: parsed.targetUrl,
+        keepPath: parsed.keepPath,
+        askFirst: parsed.askFirst,
+      };
       if (form.get("intent") === "create") {
         const count = await db.geoRedirect.count({ where: { shopId: shop.id } });
         if (count >= MAX_GEO_REDIRECTS) {
@@ -88,7 +93,7 @@ function RedirectForm({
   onDone,
 }: {
   options: Options;
-  initial?: { id: string; countries: string[]; targetUrl: string };
+  initial?: { id: string; countries: string[]; targetUrl: string; keepPath: boolean; askFirst: boolean };
   onDone: () => void;
 }) {
   const fetcher = useFetcher<typeof action>();
@@ -115,6 +120,20 @@ function RedirectForm({
         defaultValue={initial?.targetUrl}
         required
       />
+      <label style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "flex-start" }}>
+        <input type="checkbox" name="keepPath" defaultChecked={initial ? initial.keepPath : true} />
+        <span>
+          Keep the page: a visitor on /products/hat goes to the same product
+          page on the target store, not its home page.
+        </span>
+      </label>
+      <label style={{ display: "flex", gap: 8, marginTop: 8, alignItems: "flex-start" }}>
+        <input type="checkbox" name="askFirst" defaultChecked={initial?.askFirst ?? false} />
+        <span>
+          Ask first: show a banner with &quot;Go to store&quot; and &quot;Stay
+          here&quot; buttons instead of redirecting straight away.
+        </span>
+      </label>
       <div className={styles.toolbar} style={{ marginTop: 12 }}>
         <button type="submit" className={styles.primaryButton}>
           Save
@@ -131,7 +150,14 @@ function RedirectRow({
   redirect,
   options,
 }: {
-  redirect: { id: string; countries: string[]; targetUrl: string; enabled: boolean };
+  redirect: {
+    id: string;
+    countries: string[];
+    targetUrl: string;
+    keepPath: boolean;
+    askFirst: boolean;
+    enabled: boolean;
+  };
   options: Options;
 }) {
   const fetcher = useFetcher<typeof action>();
@@ -161,6 +187,10 @@ function RedirectRow({
         <a href={redirect.targetUrl} target="_blank" rel="noreferrer">
           {redirect.targetUrl}
         </a>
+        <div className={styles.muted} style={{ fontSize: 13 }}>
+          {redirect.keepPath ? "Same page" : "Home page"} ·{" "}
+          {redirect.askFirst ? "Asks first" : "Straight away"}
+        </div>
       </td>
       <td>
         <s-switch
@@ -215,6 +245,12 @@ export default function GeolocationRedirects() {
           A visitor who is blocked, for example because their country is on
           your Country Blocker list, is never redirected. Admin Access devices
           and bots are not redirected either.
+        </p>
+        <p>
+          A visitor who picks &quot;Stay here&quot; is not asked or redirected
+          again on that device. To let visitors come back from a regional
+          store, link to this store with <code>?vg_stay=1</code> at the end
+          of the address.
         </p>
       </Banner>
 

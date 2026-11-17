@@ -12,6 +12,9 @@ import { classifyUserAgent } from "../lib/bots";
 import { normalizeIp } from "../lib/ip";
 import type { NetworkInfo } from "../lib/network";
 import { decide, findGeoRedirect, isRedirectTarget, normalizePath } from "../lib/verdict";
+import { geoTargetUrl } from "../lib/geo-redirect";
+import { pickBlockPageLook, storefrontBrand } from "../lib/block-page-look";
+import { countryNameIn, localizeBlockText, pickLanguage, visitorTexts } from "../lib/visitor-texts";
 import {
   clientIp,
   isVisitorCode,
@@ -144,6 +147,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     network,
     bot: { isBot: agent.isBot, claimedName: agent.claimed?.name ?? null, verified },
   };
+  // Visitor-facing text follows the browser's languages, then the store's.
+  const language = pickLanguage(param("lang"));
+  const brand = storefrontBrand(pickBlockPageLook(shop.settings));
   let decision = decide(config, context);
   let verdict: "ALLOWED" | "BLOCKED" | "REDIRECTED" = decision.verdict;
 
@@ -160,18 +166,46 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       decision = { verdict: "ALLOWED", reason: "Redirect page" };
     } else {
       response.verdict = "BLOCKED";
-      response.action = storefrontAction(blockerConfig, decision.blocker);
+      const action = storefrontAction(blockerConfig, decision.blocker);
+      Object.assign(action, localizeBlockText(action.header, action.message, language));
+      const texts = visitorTexts(language);
+      action.texts = { lang: texts.lang, dir: texts.dir, checkTitle: texts.checkTitle, checkNote: texts.checkNote };
+      action.brand = brand;
+      response.action = action;
     }
   }
   verdict = decision.verdict;
 
-  const geoRedirect = response.redirect
-    ? null
-    : findGeoRedirect(config, context, decision, param("host") || shop.shopDomain);
+  // "gs" is set once the visitor chose to stay on this store.
+  const geoRedirect =
+    response.redirect || param("gs") === "1"
+      ? null
+      : findGeoRedirect(config, context, decision, param("host") || shop.shopDomain);
   if (geoRedirect) {
-    response.redirect = geoRedirect.targetUrl;
-    verdict = "REDIRECTED";
-    decision = { verdict: "ALLOWED", reason: `Geolocation redirect: ${geoRedirect.targetUrl}` };
+    const target = geoTargetUrl(
+      geoRedirect.targetUrl,
+      Boolean(geoRedirect.keepPath),
+      param("path") || "/",
+      param("search"),
+    );
+    if (geoRedirect.askFirst) {
+      const texts = visitorTexts(language);
+      response.geoOffer = {
+        url: target,
+        country: countryNameIn(context.country ?? "", texts.lang),
+        text: texts.geoText,
+        go: texts.geoGo,
+        stay: texts.geoStay,
+        lang: texts.lang,
+        dir: texts.dir,
+        brand,
+      };
+      decision = { verdict: "ALLOWED", reason: `Geolocation redirect offered: ${geoRedirect.targetUrl}` };
+    } else {
+      response.redirect = target;
+      verdict = "REDIRECTED";
+      decision = { verdict: "ALLOWED", reason: `Geolocation redirect: ${geoRedirect.targetUrl}` };
+    }
   }
 
   // Record the visit. Admin traffic is not logged.
