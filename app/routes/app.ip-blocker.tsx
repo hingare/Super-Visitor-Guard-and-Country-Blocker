@@ -10,13 +10,15 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
-import { addRules, deleteRules, listRules, updateRule } from "../models/rules.server";
+import { addRules, deleteRules, invalidateVerdictConfig, listRules, updateRule } from "../models/rules.server";
 import { getBlockerConfig, saveHandling, type ActionResult } from "../models/blocker.server";
 import { parseBulkIps, parseIpRule } from "../lib/ip";
 import { isChecked } from "../lib/settings";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
 import { Banner, Card, CardSection, EmptyState, StatusToggle } from "../components/ui";
 import { HandlingCard, Pagination, SearchBox, useResultToast } from "../components/blockers";
+import { ExpiryNote, ExpirySelect } from "../components/rule-list";
+import { AUTO_BLOCK_LIMITS, AUTO_BLOCK_MINUTES, parseAutoBlock, parseExpiry } from "../lib/limits";
 
 const MAX_BULK = 5000;
 
@@ -43,6 +45,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     list,
     ...rules,
     deleteOrders: shop.settings.deleteOrdersFromBlockedIps,
+    autoBlockEnabled: shop.settings.autoBlockEnabled,
+    autoBlockLimit: shop.settings.autoBlockLimit,
+    autoBlockMinutes: shop.settings.autoBlockMinutes,
     handling,
   };
 };
@@ -53,13 +58,14 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
   const form = await request.formData();
   const list = form.get("list") === "WHITELIST" ? "WHITELIST" : "BLACKLIST";
   const comment = String(form.get("comment") ?? "").trim().slice(0, 200) || null;
+  const expiresAt = parseExpiry(form.get("expires"));
 
   switch (form.get("intent")) {
     case "add": {
       const parsed = parseIpRule(String(form.get("value") ?? ""));
       if (!parsed.ok) return parsed;
       const added = await addRules(shop.id, parsed.isRange ? "IP_RANGE" : "IP", list, [
-        { value: parsed.value, comment },
+        { value: parsed.value, comment, expiresAt },
       ]);
       return added
         ? { ok: true, message: "IP filter added" }
@@ -74,8 +80,8 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
       const single = values.filter((value) => !parseIpRuleIsRange(value));
       const ranges = values.filter(parseIpRuleIsRange);
       const added =
-        (await addRules(shop.id, "IP", list, single.map((value) => ({ value, comment })))) +
-        (await addRules(shop.id, "IP_RANGE", list, ranges.map((value) => ({ value, comment }))));
+        (await addRules(shop.id, "IP", list, single.map((value) => ({ value, comment, expiresAt })))) +
+        (await addRules(shop.id, "IP_RANGE", list, ranges.map((value) => ({ value, comment, expiresAt }))));
       const skipped = invalid.length ? `, ${invalid.length} invalid skipped` : "";
       return { ok: true, message: `${added} IP filters added${skipped}` };
     }
@@ -111,6 +117,22 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
         data: { deleteOrdersFromBlockedIps: enabled },
       });
       return { ok: true, message: enabled ? "Setting enabled" : "Setting disabled" };
+    }
+    case "autoBlock": {
+      const parsed = parseAutoBlock(form.get("limit"), form.get("minutes"));
+      if (!parsed) {
+        return {
+          ok: false,
+          error: `Enter a limit between ${AUTO_BLOCK_LIMITS.min} and ${AUTO_BLOCK_LIMITS.max} page views a minute.`,
+        };
+      }
+      const enabled = isChecked(form.get("enabled"));
+      await db.settings.update({
+        where: { shopId: shop.id },
+        data: { autoBlockEnabled: enabled, autoBlockLimit: parsed.limit, autoBlockMinutes: parsed.minutes },
+      });
+      invalidateVerdictConfig(shop.id);
+      return { ok: true, message: enabled ? "Auto-block is on" : "Auto-block saved (off)" };
     }
     case "handling":
       return saveHandling(shop.id, "IP", form);
@@ -223,6 +245,9 @@ function CreateIpFilter({ list }: { list: string }) {
             Note (optional)
           </label>
           <input id="ip-comment" name="comment" className={styles.input} maxLength={200} />
+          <div style={{ marginTop: 12 }}>
+            <ExpirySelect id="ip-expires" />
+          </div>
           <div className={styles.toolbar} style={{ marginTop: 12 }}>
             <button type="submit" className={styles.primaryButton}>
               Save
@@ -241,7 +266,14 @@ function IpRow({
   rule,
   list,
 }: {
-  rule: { id: string; value: string; comment: string | null; createdAt: string | Date; hits: number };
+  rule: {
+    id: string;
+    value: string;
+    comment: string | null;
+    createdAt: string | Date;
+    hits: number;
+    expiresAt: string | Date | null;
+  };
   list: string;
 }) {
   const fetcher = useFetcher<typeof action>();
@@ -288,6 +320,7 @@ function IpRow({
       <td>
         {rule.value}
         {rule.comment && <div className={styles.muted}>{rule.comment}</div>}
+        {rule.expiresAt && <ExpiryNote expiresAt={rule.expiresAt} />}
       </td>
       <td>
         <div className={styles.toolbar} style={{ justifyContent: "flex-end" }}>
@@ -310,6 +343,86 @@ function IpRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function AutoBlockCard({ enabled, limit, minutes }: { enabled: boolean; limit: number; minutes: number }) {
+  const fetcher = useFetcher<typeof action>();
+  const [perMinute, setPerMinute] = useState(String(limit));
+  const [duration, setDuration] = useState(String(minutes));
+  useResultToast(fetcher);
+  const save = (on: boolean) =>
+    fetcher.submit(
+      { intent: "autoBlock", limit: perMinute, minutes: duration, ...(on ? { enabled: "on" } : {}) },
+      { method: "POST" },
+    );
+
+  return (
+    <Card>
+      <CardSection title="Auto-block Floods">
+        <p>
+          Block an IP address on its own when it opens far more pages than a
+          person could, such as a scraper or a bot hammering your store. It
+          goes on the blacklist for the time you choose and comes off again by
+          itself. Whitelisted addresses, verified search engines and devices
+          with Admin Access are never auto-blocked.
+        </p>
+        <div className={styles.formRow} style={{ marginTop: 12 }}>
+          <div>
+            <label className={styles.fieldLabel} htmlFor="auto-limit">
+              More than this many page views in one minute
+            </label>
+            <input
+              id="auto-limit"
+              type="number"
+              min={AUTO_BLOCK_LIMITS.min}
+              max={AUTO_BLOCK_LIMITS.max}
+              className={styles.input}
+              value={perMinute}
+              onChange={(event) => setPerMinute(event.currentTarget.value)}
+            />
+          </div>
+          <div>
+            <label className={styles.fieldLabel} htmlFor="auto-minutes">
+              Block for
+            </label>
+            <select
+              id="auto-minutes"
+              className={styles.select}
+              value={duration}
+              onChange={(event) => setDuration(event.currentTarget.value)}
+            >
+              {AUTO_BLOCK_MINUTES.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            type="button"
+            className={styles.outlineButton}
+            disabled={fetcher.state !== "idle"}
+            onClick={() => save(enabled)}
+          >
+            Save
+          </button>
+        </div>
+        <div style={{ marginTop: 12 }}>
+          <StatusToggle
+            name="autoBlock"
+            enabled={enabled}
+            onToggle={save}
+            label={enabled ? "Auto-block is on." : "Auto-block is off."}
+          />
+        </div>
+        <p className={styles.muted} style={{ marginTop: 12 }}>
+          A shopper browsing quickly opens a few pages a minute, so the default
+          of 120 leaves plenty of room. Auto-blocked addresses show in the
+          blacklist above with the note &quot;Auto-blocked&quot;.
+        </p>
+      </CardSection>
+    </Card>
   );
 }
 
@@ -428,6 +541,12 @@ export default function IpBlocker() {
           </div>
         </CardSection>
       </Card>
+
+      <AutoBlockCard
+        enabled={data.autoBlockEnabled}
+        limit={data.autoBlockLimit}
+        minutes={data.autoBlockMinutes}
+      />
 
       <HandlingCard blockerName="IP blocker" config={data.handling} />
     </>

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -12,6 +12,7 @@ import db from "../db.server";
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
 import { createAccessLink } from "../models/access-links.server";
+import { LINK_EXPIRY_OPTIONS, LINK_USE_OPTIONS, linkStatus, linkUsable, parseExpiry, parseMaxUses } from "../lib/limits";
 import { invalidateVerdictConfig } from "../models/rules.server";
 import { syncStorefrontConfig } from "../models/storefront-config.server";
 import { APP_NAME } from "../lib/app-info";
@@ -42,7 +43,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     (await db.accessLink.findFirst({
       where: { shopId: shop.id, kind: "ADMIN_INVITE", label: OWNER_LINK_LABEL },
     })) ??
-    (await createAccessLink(shop.id, "ADMIN_INVITE", OWNER_LINK_LABEL));
+    (await createAccessLink(shop.id, "ADMIN_INVITE", { label: OWNER_LINK_LABEL }));
   const links = await db.accessLink.findMany({
     where: { shopId: shop.id, NOT: { id: ownerLink.id } },
     orderBy: { createdAt: "desc" },
@@ -55,6 +56,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
         id: link.id,
         uses: link.uses,
         createdAt: link.createdAt,
+        status: linkStatus(link),
+        usable: linkUsable(link),
         url: accessLinkUrl(session.shop, kind, link.token),
       }));
 
@@ -144,7 +147,10 @@ async function runAction(
     }
     case "createLink": {
       const kind = form.get("kind") === "ADMIN_INVITE" ? "ADMIN_INVITE" : "AUTO_WHITELIST";
-      await createAccessLink(shop.id, kind);
+      await createAccessLink(shop.id, kind, {
+        expiresAt: parseExpiry(form.get("expires")),
+        maxUses: parseMaxUses(form.get("maxUses")),
+      });
       return { ok: true, message: "Link created" };
     }
     case "deleteLink": {
@@ -166,7 +172,7 @@ function LinkTable({
   links,
   onDelete,
 }: {
-  links: { id: string; url: string; uses: number }[];
+  links: { id: string; url: string; uses: number; status: string; usable: boolean }[];
   onDelete: (id: string) => void;
 }) {
   const shopify = useAppBridge();
@@ -176,14 +182,16 @@ function LinkTable({
         <tr>
           <th>Link</th>
           <th>Used</th>
+          <th>Limits</th>
           <th aria-label="Actions" />
         </tr>
       </thead>
       <tbody>
         {links.map((link) => (
           <tr key={link.id}>
-            <td style={{ wordBreak: "break-all" }}>{link.url}</td>
+            <td style={{ wordBreak: "break-all", opacity: link.usable ? 1 : 0.5 }}>{link.url}</td>
             <td>{link.uses}</td>
+            <td>{link.usable ? link.status : <span className={styles.blocked}>{link.status}</span>}</td>
             <td>
               <div className={styles.toolbar}>
                 <button
@@ -210,6 +218,57 @@ function LinkTable({
         ))}
       </tbody>
     </table>
+  );
+}
+
+// Expiry and use-limit choices next to a "create link" button.
+function CreateLinkControls({
+  kind,
+  label,
+  primary,
+  onCreate,
+}: {
+  kind: "ADMIN_INVITE" | "AUTO_WHITELIST";
+  label: string;
+  primary?: boolean;
+  onCreate: (values: Record<string, string>) => void;
+}) {
+  const [expires, setExpires] = useState("");
+  const [maxUses, setMaxUses] = useState("");
+  return (
+    <div className={styles.toolbar} style={{ marginTop: 12, flexWrap: "wrap", justifyContent: primary ? "center" : undefined }}>
+      <select
+        className={styles.select}
+        aria-label="Link expiry"
+        value={expires}
+        onChange={(event) => setExpires(event.currentTarget.value)}
+      >
+        {LINK_EXPIRY_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <select
+        className={styles.select}
+        aria-label="Link use limit"
+        value={maxUses}
+        onChange={(event) => setMaxUses(event.currentTarget.value)}
+      >
+        {LINK_USE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className={primary ? styles.primaryButton : styles.outlineButton}
+        onClick={() => onCreate({ intent: "createLink", kind, expires, maxUses })}
+      >
+        {label}
+      </button>
+    </div>
   );
 }
 
@@ -272,7 +331,8 @@ export default function GeneralSettings() {
             <p>
               Create an invitation link to give colleagues or partners the
               same access. Anyone who opens it bypasses your visitor filters
-              on that device.
+              on that device. Give the link an end date or a use limit so it
+              stops working if it is passed on.
             </p>
           </Banner>
           <div style={{ marginTop: 16 }}>
@@ -282,14 +342,7 @@ export default function GeneralSettings() {
                 onDelete={(id) => submit({ intent: "deleteLink", id })}
               />
             )}
-            <button
-              type="button"
-              className={styles.outlineButton}
-              style={{ marginTop: 12 }}
-              onClick={() => submit({ intent: "createLink", kind: "ADMIN_INVITE" })}
-            >
-              Create Invitation Link
-            </button>
+            <CreateLinkControls kind="ADMIN_INVITE" label="Create Invitation Link" onCreate={submit} />
           </div>
         </CardSection>
       </Card>
@@ -397,15 +450,7 @@ export default function GeneralSettings() {
               onDelete={(id) => submit({ intent: "deleteLink", id })}
             />
           )}
-          <div style={{ textAlign: "center", marginTop: 12 }}>
-            <button
-              type="button"
-              className={styles.primaryButton}
-              onClick={() => submit({ intent: "createLink", kind: "AUTO_WHITELIST" })}
-            >
-              Create Link
-            </button>
-          </div>
+          <CreateLinkControls kind="AUTO_WHITELIST" label="Create Link" primary onCreate={submit} />
         </CardSection>
       </Card>
     </>

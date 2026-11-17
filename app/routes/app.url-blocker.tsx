@@ -56,6 +56,7 @@ export default function UrlBlocker() {
       </Banner>
 
       <RuleListCard
+        expiry
         data={list}
         searchPlaceholder="Search URL blocker rules"
         addLabel="Add URL blocker rule"

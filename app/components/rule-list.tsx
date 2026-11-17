@@ -5,6 +5,7 @@ import { useFetcher } from "react-router";
 import { frameStyles as styles } from "./AppFrame";
 import { Card, CardSection, EmptyState } from "./ui";
 import { Pagination, SearchBox, useResultToast } from "./blockers";
+import { EXPIRY_OPTIONS, expiryText } from "../lib/limits";
 
 type Result = { ok: true; message: string } | { ok: false; error: string };
 
@@ -16,6 +17,7 @@ export interface RuleRow {
   value: string;
   comment: string | null;
   hits: number;
+  expiresAt?: string | Date | null;
   createdAt: string | Date;
 }
 
@@ -45,6 +47,8 @@ export interface RuleListCardProps {
   types: Option[];
   lists: Option[];
   matchTypes?: boolean;
+  // Offer an end date when adding a rule (storefront rules only).
+  expiry?: boolean;
   renderValue?: (rule: RuleRow) => ReactNode;
   extraActions?: ReactNode;
 }
@@ -65,6 +69,7 @@ export function RuleListCard({
   types,
   lists,
   matchTypes = false,
+  expiry = false,
   renderValue,
   extraActions,
 }: RuleListCardProps) {
@@ -159,6 +164,7 @@ export function RuleListCard({
               </label>
               <input id={id("comment")} name="comment" className={styles.input} maxLength={200} />
             </div>
+            {expiry && <ExpirySelect id={id("expires")} />}
             <button type="submit" className={styles.primaryButton}>
               Add
             </button>
@@ -189,6 +195,7 @@ export function RuleListCard({
                   <td>
                     {renderValue ? renderValue(rule) : rule.value}
                     {rule.comment && <div className={styles.muted}>{rule.comment}</div>}
+                    {rule.expiresAt && <ExpiryNote expiresAt={rule.expiresAt} />}
                   </td>
                   {lists.length > 1 && <td>{label(lists, rule.list)}</td>}
                   {matchTypes && <td>{MATCH_LABELS[rule.matchType] ?? rule.matchType}</td>}
@@ -235,5 +242,30 @@ export function RuleListCard({
         )}
       </CardSection>
     </Card>
+  );
+}
+
+export function ExpirySelect({ id }: { id: string }) {
+  return (
+    <div>
+      <label className={styles.fieldLabel} htmlFor={id}>
+        Remove the rule
+      </label>
+      <select id={id} name="expires" className={styles.select} defaultValue="">
+        {EXPIRY_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+}
+
+export function ExpiryNote({ expiresAt }: { expiresAt: string | Date }) {
+  return (
+    <div className={styles.muted} title={new Date(expiresAt).toLocaleString()}>
+      <s-icon type="clock" size="small" /> Ends {expiryText(expiresAt)}
+    </div>
   );
 }

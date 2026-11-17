@@ -7,8 +7,9 @@ import { parseIpRule } from "./ip";
 import { isCountryCode, regionRuleValue, splitRegionRule } from "./countries";
 import { parsePagePath } from "./settings";
 import { CUSTOMER_RULE_FIELDS, LIST_RULE_TYPES, parseRuleValue, type ListRuleType } from "./rule-specs";
+import { canExpire } from "./limits";
 
-export const BACKUP_HEADER = ["type", "list", "match", "value", "comment", "enabled"];
+export const BACKUP_HEADER = ["type", "list", "match", "value", "comment", "enabled", "expires"];
 export const BACKUP_MAX_ROWS = 20_000;
 
 const RULE_TYPES: readonly RuleType[] = [
@@ -35,6 +36,8 @@ export interface BackupRule {
   value: string;
   comment: string | null;
   enabled: boolean;
+  // Only for rules that end on a date (see lib/limits).
+  expiresAt?: Date | null;
 }
 
 export function rulesToCsv(rules: BackupRule[]): string {
@@ -47,6 +50,7 @@ export function rulesToCsv(rules: BackupRule[]): string {
       rule.value,
       rule.comment,
       rule.enabled ? "yes" : "no",
+      rule.expiresAt ? rule.expiresAt.toISOString() : "",
     ]),
   );
 }
@@ -100,7 +104,7 @@ export interface ParsedBackup {
   customerRulesChanged: boolean;
 }
 
-export function parseBackupCsv(text: string): ParsedBackup | { error: string } {
+export function parseBackupCsv(text: string, now = new Date()): ParsedBackup | { error: string } {
   const rows = parseCsv(text);
   const header = (rows[0] ?? []).map((cell) => cell.trim().toLowerCase());
   const col = Object.fromEntries(BACKUP_HEADER.map((name) => [name, header.indexOf(name)]));
@@ -142,6 +146,15 @@ export function parseBackupCsv(text: string): ParsedBackup | { error: string } {
     if (seen.has(key)) return;
     seen.add(key);
 
+    const expiresText = cell("expires");
+    let expiresAt: Date | undefined;
+    if (expiresText) {
+      expiresAt = new Date(expiresText);
+      if (Number.isNaN(expiresAt.getTime())) return fail(line, "expires must be a date, such as 2026-12-31T00:00:00Z");
+      if (!canExpire(checked.type)) return fail(line, "this rule type cannot have an end date");
+      if (expiresAt.getTime() <= now.getTime()) return fail(line, "this rule has already expired");
+    }
+
     const enabledText = cell("enabled").toLowerCase();
     rules.push({
       type: checked.type,
@@ -150,6 +163,7 @@ export function parseBackupCsv(text: string): ParsedBackup | { error: string } {
       value: checked.value,
       comment: cell("comment").slice(0, 200) || null,
       enabled: !["no", "false", "0"].includes(enabledText),
+      ...(expiresAt ? { expiresAt } : {}),
     });
   });
 

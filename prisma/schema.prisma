@@ -172,6 +172,11 @@ model Settings {
 
   // IP Blocker
   deleteOrdersFromBlockedIps Boolean @default(false)
+  // Auto-block: an IP that opens more than autoBlockLimit pages in a minute
+  // goes on the IP blacklist for autoBlockMinutes.
+  autoBlockEnabled           Boolean @default(false)
+  autoBlockLimit             Int     @default(120)
+  autoBlockMinutes           Int     @default(60)
 
   // Bot (VPN/Tor/Proxy) Blocker
   botBlockerEnabled Boolean @default(false)
@@ -231,11 +236,14 @@ model Rule {
   comment   String?
   enabled   Boolean   @default(true)
   hits      Int       @default(0)
+  // A rule with a date stops applying then and is removed by the cleanup job.
+  expiresAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
   @@unique([shopId, type, list, value])
   @@index([shopId, type, list])
+  @@index([expiresAt])
 }
 
 // A storefront visitor, identified by a first-party cookie id shown as "CT-<number>".
@@ -324,6 +332,9 @@ model AccessLink {
   token     String         @unique @default(cuid())
   label     String?
   uses      Int            @default(0)
+  // Optional limits; a link past either one no longer works.
+  expiresAt DateTime?
+  maxUses   Int?
   createdAt DateTime       @default(now())
 }
 

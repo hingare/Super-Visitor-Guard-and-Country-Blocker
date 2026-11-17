@@ -52,6 +52,7 @@ export default function ReferrerBlocker() {
       </Banner>
 
       <RuleListCard
+        expiry
         data={list}
         help={
           <>

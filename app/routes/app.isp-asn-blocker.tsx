@@ -56,6 +56,7 @@ export default function IspAsnBlocker() {
       </Banner>
 
       <RuleListCard
+        expiry
         data={list}
         searchPlaceholder="Search ISP/ASN filters"
         addLabel="Add ISP/ASN filter"

@@ -6,6 +6,11 @@ import { readSelectedPages } from "../lib/settings";
 
 export const PAGE_SIZE = 20;
 
+// Rules without an end date, or whose end date has not come yet.
+export function activeRules(now = new Date()): Prisma.RuleWhereInput {
+  return { OR: [{ expiresAt: null }, { expiresAt: { gt: now } }] };
+}
+
 export async function listRules({
   shopId,
   type,
@@ -48,7 +53,12 @@ export async function addRules(
   shopId: string,
   type: RuleType,
   list: RuleList,
-  values: { value: string; matchType?: "EXACT" | "PARTIAL"; comment?: string | null }[],
+  values: {
+    value: string;
+    matchType?: "EXACT" | "PARTIAL";
+    comment?: string | null;
+    expiresAt?: Date | null;
+  }[],
 ): Promise<number> {
   if (values.length === 0) return 0;
   const result = await db.rule.createMany({
@@ -59,11 +69,25 @@ export async function addRules(
       value: item.value,
       matchType: item.matchType ?? "EXACT",
       comment: item.comment ?? null,
+      expiresAt: item.expiresAt ?? null,
     })),
     skipDuplicates: true,
   });
   invalidateVerdictConfig(shopId);
   return result.count;
+}
+
+// Removes rules whose end date has passed, for the hourly cleanup job.
+export async function deleteExpiredRules(now = new Date()) {
+  const expired = await db.rule.findMany({
+    where: { expiresAt: { lte: now } },
+    select: { id: true, shopId: true },
+    take: 5000,
+  });
+  if (expired.length === 0) return 0;
+  const { count } = await db.rule.deleteMany({ where: { id: { in: expired.map((rule) => rule.id) } } });
+  for (const shopId of new Set(expired.map((rule) => rule.shopId))) invalidateVerdictConfig(shopId);
+  return count;
 }
 
 export async function deleteRules(shopId: string, where: Prisma.RuleWhereInput) {
@@ -116,6 +140,7 @@ async function loadVerdictConfig(shopId: string, settings: Settings): Promise<Ve
     where: {
       shopId,
       enabled: true,
+      ...activeRules(),
       type: {
         in: [
           "PAGE_WHITELIST",

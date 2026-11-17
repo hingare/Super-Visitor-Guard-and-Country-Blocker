@@ -181,7 +181,8 @@ export default function BackupAndReports() {
         <CardSection title="Restore from a backup">
           <p>
             Upload a backup file made here. The columns are type, list, match,
-            value, comment and enabled; rows that are not valid are skipped
+            value, comment, enabled and expires (an end date, for rules that
+            have one); rows that are not valid are skipped
             and listed below. A file can hold up to{" "}
             {BACKUP_MAX_ROWS.toLocaleString("en-US")} rules.
           </p>

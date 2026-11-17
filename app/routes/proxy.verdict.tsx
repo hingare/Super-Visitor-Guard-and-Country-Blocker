@@ -9,7 +9,10 @@ import { RateLimiter } from "../lib/rate-limit";
 import { lookupGeo, lookupNetwork } from "../services/geoip.server";
 import { verifyBot } from "../services/bots.server";
 import { classifyUserAgent } from "../lib/bots";
-import { normalizeIp } from "../lib/ip";
+import { ipMatches, normalizeIp, parseIp } from "../lib/ip";
+import { isActive } from "../lib/limits";
+import { claimLinkUse } from "../models/access-links.server";
+import { autoBlockIp } from "../models/auto-block.server";
 import type { NetworkInfo } from "../lib/network";
 import { decide, findGeoRedirect, isRedirectTarget, normalizePath } from "../lib/verdict";
 import {
@@ -28,6 +31,8 @@ import {
 // counted for billing. Beyond it the verdict still applies, but the visit is
 // neither recorded nor billed, so a flood cannot fill the log or the bill.
 const logLimiter = new RateLimiter(60, 60_000);
+// Page views per visitor IP and shop each minute, for Auto-block.
+const floodCounter = new RateLimiter(Number.MAX_SAFE_INTEGER, 60_000);
 
 const json = (body: VerdictResponse) =>
   Response.json(body, { headers: { "Cache-Control": "no-store" } });
@@ -53,23 +58,26 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   // Admin Access Mode: an invitation token in the URL turns it on for this
   // device; the script then sends the token back on every page.
+  // An invitation with a use limit counts each opening; a device that already
+  // holds the token keeps access until the link expires or is deleted.
   let adminAccess = false;
+  const now = new Date();
   const inviteToken = param("vg_admin");
   const storedToken = param("at");
-  if (inviteToken || storedToken) {
-    const link = await db.accessLink.findFirst({
-      where: { shopId: shop.id, kind: "ADMIN_INVITE", token: inviteToken || storedToken },
-    });
-    if (link) {
+  const findInvite = (token: string) =>
+    db.accessLink.findFirst({ where: { shopId: shop.id, kind: "ADMIN_INVITE", token } });
+  if (inviteToken) {
+    const link = await findInvite(inviteToken);
+    if (link && (await claimLinkUse(link, now))) {
       adminAccess = true;
-      if (inviteToken) {
-        await db.accessLink.update({ where: { id: link.id }, data: { uses: { increment: 1 } } });
-        response.adminToken = link.token;
-      }
-    } else if (storedToken) {
-      // The link was deleted, so access is revoked.
-      response.clearAdminToken = true;
+      response.adminToken = link.token;
     }
+  }
+  if (!adminAccess && storedToken) {
+    const link = await findInvite(storedToken);
+    if (link && isActive(link.expiresAt, now)) adminAccess = true;
+    // The link was deleted or has expired, so access is revoked.
+    else response.clearAdminToken = true;
   }
 
   // Auto-Whitelist link: add the visitor's IP to the IP whitelist.
@@ -78,23 +86,20 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     const link = await db.accessLink.findFirst({
       where: { shopId: shop.id, kind: "AUTO_WHITELIST", token: whitelistToken },
     });
-    if (link) {
-      await db.$transaction([
-        db.rule.upsert({
-          where: {
-            shopId_type_list_value: { shopId: shop.id, type: "IP", list: "WHITELIST", value: ip },
-          },
-          create: {
-            shopId: shop.id,
-            type: "IP",
-            list: "WHITELIST",
-            value: ip,
-            comment: "Added by Auto-Whitelist link",
-          },
-          update: {},
-        }),
-        db.accessLink.update({ where: { id: link.id }, data: { uses: { increment: 1 } } }),
-      ]);
+    if (link && (await claimLinkUse(link, now))) {
+      await db.rule.upsert({
+        where: {
+          shopId_type_list_value: { shopId: shop.id, type: "IP", list: "WHITELIST", value: ip },
+        },
+        create: {
+          shopId: shop.id,
+          type: "IP",
+          list: "WHITELIST",
+          value: ip,
+          comment: "Added by Auto-Whitelist link",
+        },
+        update: {},
+      });
       invalidateVerdictConfig(shop.id);
       response.redirect = "/";
     }
@@ -128,7 +133,28 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   response.visitorCode = code;
 
   const path = normalizePath(param("path") || "/");
-  const config = await getVerdictConfig(shop.id, shop.settings);
+  let config = await getVerdictConfig(shop.id, shop.settings);
+
+  // Auto-block: the page view that goes over the limit puts the IP on the
+  // blacklist, so it is blocked from this view on.
+  if (shop.settings.autoBlockEnabled && ip && !adminAccess && !verified) {
+    const views = floodCounter.count(`${shop.id}:${ip}`);
+    const parsedIp = parseIp(ip);
+    if (
+      views === shop.settings.autoBlockLimit + 1 &&
+      parsedIp &&
+      !config.ipWhitelist.some((rule) => ipMatches(parsedIp, rule.matcher))
+    ) {
+      const blocked = await autoBlockIp(shop.id, ip, {
+        limit: shop.settings.autoBlockLimit,
+        minutes: shop.settings.autoBlockMinutes,
+      }).catch((error) => {
+        console.error(`Auto-block failed for ${shop.shopDomain}`, error);
+        return false;
+      });
+      if (blocked) config = await getVerdictConfig(shop.id, shop.settings);
+    }
+  }
   const context = {
     ip,
     country: geo?.country ?? null,

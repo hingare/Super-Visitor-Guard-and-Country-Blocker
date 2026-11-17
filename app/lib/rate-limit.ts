@@ -12,14 +12,19 @@ export class RateLimiter {
 
   // Counts one hit and says whether it is within the limit.
   hit(key: string, now = Date.now()): boolean {
+    return this.count(key, now) <= this.limit;
+  }
+
+  // Counts one hit and returns the hits in the current window, this one included.
+  count(key: string, now = Date.now()): number {
     const window = this.windows.get(key);
     if (!window || now - window.start >= this.windowMs) {
       if (this.windows.size >= this.maxKeys) this.prune(now);
       this.windows.set(key, { start: now, count: 1 });
-      return true;
+      return 1;
     }
     window.count += 1;
-    return window.count <= this.limit;
+    return window.count;
   }
 
   private prune(now: number) {
