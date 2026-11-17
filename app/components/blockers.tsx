@@ -4,6 +4,7 @@ import { Link, useFetcher, useRevalidator, useSearchParams } from "react-router"
 import { useAppBridge } from "@shopify/app-bridge-react";
 
 import { APP_NAME } from "../lib/app-info";
+import { PASS_HOURS } from "../lib/challenge-info";
 import {
   BLOCK_TEMPLATES,
   DEFAULT_HEADER,
@@ -189,6 +190,24 @@ export function HandlingCard({
           Blocked visitors can still see the page, but these sections are
           hidden from them, for example the add-to-cart form or prices.
         </p>
+      </>
+    ),
+    CHALLENGE: (
+      <>
+        <p className={styles.helpText} style={{ marginTop: 0 }}>
+          Instead of turning visitors away, the store shows a short &quot;Checking
+          your browser&quot; page. A real browser passes on its own in a second or
+          two and the visitor goes on to the page they asked for. Scripts and
+          simple bots that do not run JavaScript stay out. A visitor who passes is
+          not checked again for {PASS_HOURS} hours on the same device and network.
+        </p>
+        <p className={styles.helpText}>
+          If the check cannot run, the visitor sees the header and message saved
+          for the &quot;custom information&quot; option.
+        </p>
+        <div style={{ marginTop: 12 }}>
+          <SaveButton busy={busy} />
+        </div>
       </>
     ),
   };
