@@ -5,7 +5,7 @@
   if (!context) return;
 
   var MASK_TIMEOUT_MS = 4000;
-  var STORAGE = { visitor: "vg_vc", admin: "vg_at" };
+  var STORAGE = { visitor: "vg_vc", admin: "vg_at", pass: "vg_cp" };
 
   function unmask() {
     var mask = document.getElementById("visitor-guard-mask");
@@ -74,6 +74,10 @@
   var params = new URLSearchParams(window.location.search);
   var inviteToken = params.get("vg_admin");
   var whitelistToken = params.get("vg_whitelist");
+  // Set when the page reloads after the browser check: vg_ck marks the
+  // reload, vg_cp carries the pass when local storage is unavailable.
+  var justChecked = params.has("vg_ck");
+  var urlPass = params.get("vg_cp");
 
   if (!context.enabled && !inviteToken && !whitelistToken) {
     unmask();
@@ -81,9 +85,10 @@
   }
 
   // Remove our own parameters from the address bar once read.
-  if (inviteToken || whitelistToken) {
-    params.delete("vg_admin");
-    params.delete("vg_whitelist");
+  if (inviteToken || whitelistToken || justChecked || urlPass) {
+    ["vg_admin", "vg_whitelist", "vg_ck", "vg_cp"].forEach(function (key) {
+      params.delete(key);
+    });
     var rest = params.toString();
     window.history.replaceState(
       null,
@@ -152,6 +157,120 @@
     document.body.appendChild(page);
     document.title = action.header;
     unmask();
+  }
+
+  // Browser check: find a number whose SHA-256 hash with the server's nonce
+  // starts with enough zero bits, send it back, keep the pass and reload.
+  var CHECK_BATCH = 512;
+  var CHECK_MAX_TRIES = 1 << 24;
+
+  function zeroBits(buffer) {
+    var bytes = new Uint8Array(buffer);
+    var bits = 0;
+    for (var i = 0; i < bytes.length; i++) {
+      if (bytes[i] === 0) {
+        bits += 8;
+        continue;
+      }
+      return bits + Math.clz32(bytes[i]) - 24;
+    }
+    return bits;
+  }
+
+  function solveCheck(nonce, difficulty) {
+    var encoder = new TextEncoder();
+    var start = 0;
+    function batch() {
+      if (start > CHECK_MAX_TRIES) return Promise.reject(new Error("no answer"));
+      var tries = [];
+      for (var n = start; n < start + CHECK_BATCH; n++) {
+        tries.push(window.crypto.subtle.digest("SHA-256", encoder.encode(nonce + ":" + n)));
+      }
+      var first = start;
+      start += CHECK_BATCH;
+      return Promise.all(tries).then(function (hashes) {
+        for (var i = 0; i < hashes.length; i++) {
+          if (zeroBits(hashes[i]) >= difficulty) return first + i;
+        }
+        // Let the page paint between batches so the spinner keeps turning.
+        return new Promise(function (resolve) {
+          window.setTimeout(resolve, 0);
+        }).then(batch);
+      });
+    }
+    return batch();
+  }
+
+  function showCheckPage(action) {
+    var parts = String(action.challenge || "").split(".");
+    var canCheck = parts.length === 4 && window.crypto && window.crypto.subtle && window.TextEncoder;
+    // Checked a moment ago and still not let in (the pass was not kept, or
+    // the visitor's IP changed): show the block message instead of looping.
+    if (!canCheck || justChecked) {
+      showBlockPage({ type: "CUSTOM_INFO", header: action.header, message: action.message });
+      return;
+    }
+    try {
+      window.stop();
+    } catch (error) {
+      // Older browsers.
+    }
+    var page = el(
+      "div",
+      "position:fixed;inset:0;z-index:2147483647;display:flex;align-items:center;justify-content:center;padding:24px;background:#f6f6f7;color:#202223;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;",
+    );
+    var card = el(
+      "div",
+      "max-width:480px;width:100%;padding:40px 32px;text-align:center;background:#fff;border-radius:16px;box-shadow:0 4px 24px rgba(0,0,0,.08);",
+    );
+    var spinner = el(
+      "div",
+      "width:40px;height:40px;margin:0 auto 20px;border:4px solid #e3e3e3;border-top-color:#202223;border-radius:50%;animation:vg-spin 1s linear infinite;",
+    );
+    var spin = el("style", null, "@keyframes vg-spin{to{transform:rotate(360deg)}}");
+    var title = el("h1", "margin:0 0 12px;font-size:24px;line-height:1.3;", "Checking your browser");
+    var note = el(
+      "p",
+      "margin:0;font-size:16px;line-height:1.6;opacity:.85;",
+      "This takes a few seconds. You will be taken to the store automatically.",
+    );
+    (document.head || document.documentElement).appendChild(spin);
+    card.appendChild(spinner);
+    card.appendChild(title);
+    card.appendChild(note);
+    page.appendChild(card);
+    if (!document.body) document.documentElement.appendChild(document.createElement("body"));
+    document.body.innerHTML = "";
+    document.body.appendChild(page);
+    document.title = "Checking your browser";
+    unmask();
+
+    function failed() {
+      showBlockPage({ type: "CUSTOM_INFO", header: action.header, message: action.message });
+    }
+
+    solveCheck(parts[0], Number(parts[1]))
+      .then(function (answer) {
+        var answerQuery = new URLSearchParams(query);
+        answerQuery.set("ch", action.challenge);
+        answerQuery.set("cx", String(answer));
+        return fetch(context.proxyPath + "/verdict?" + answerQuery.toString(), {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+      })
+      .then(function (response) {
+        return response.ok ? response.json() : {};
+      })
+      .then(function (result) {
+        if (!result.passToken) return failed();
+        store(STORAGE.pass, result.passToken);
+        var next = new URLSearchParams(params);
+        next.set("vg_ck", "1");
+        if (read(STORAGE.pass) !== result.passToken) next.set("vg_cp", result.passToken);
+        window.location.replace(window.location.pathname + "?" + next.toString() + window.location.hash);
+      })
+      .catch(failed);
   }
 
   function hideSection(selector) {
@@ -227,6 +346,8 @@
       window.location.replace(action.redirectUrl);
     } else if (action.type === "HIDE_SECTION" && action.sectionSelector) {
       hideSection(action.sectionSelector);
+    } else if (action.type === "CHALLENGE") {
+      showCheckPage(action);
     } else {
       showBlockPage(action);
     }
@@ -242,6 +363,7 @@
     ua: navigator.userAgent.slice(0, 500),
     vc: read(STORAGE.visitor),
     at: read(STORAGE.admin),
+    cp: urlPass || read(STORAGE.pass),
   });
   if (inviteToken) query.set("vg_admin", inviteToken);
   if (whitelistToken) query.set("vg_whitelist", whitelistToken);

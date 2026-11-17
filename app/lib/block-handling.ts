@@ -1,13 +1,14 @@
 // "How would you like the app to handle blocked visitors?" options, shared
 // by every storefront blocker.
 
-export type BlockHandling = "CUSTOM_INFO" | "REDIRECT" | "TEMPLATE" | "HIDE_SECTION";
+export type BlockHandling = "CUSTOM_INFO" | "REDIRECT" | "TEMPLATE" | "HIDE_SECTION" | "CHALLENGE";
 
 export const HANDLING_OPTIONS: { value: BlockHandling; label: string }[] = [
   { value: "CUSTOM_INFO", label: "Stay on current page and display custom information" },
   { value: "REDIRECT", label: "Redirect to your specified page" },
   { value: "TEMPLATE", label: "Choose a page from our predefined templates" },
   { value: "HIDE_SECTION", label: "Show/Hide Page Section" },
+  { value: "CHALLENGE", label: "Check the browser first and let real visitors in" },
 ];
 
 export const DEFAULT_HEADER = "Access Denied";

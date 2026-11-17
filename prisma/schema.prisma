@@ -60,6 +60,8 @@ enum BlockHandling {
   TEMPLATE
   // Hide or show chosen page sections with a CSS selector.
   HIDE_SECTION
+  // Show a short browser check; visitors who pass may continue.
+  CHALLENGE
 }
 
 enum RuleType {

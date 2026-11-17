@@ -9,6 +9,8 @@ export interface StorefrontAction {
   redirectUrl?: string;
   templateId?: string;
   sectionSelector?: string;
+  // The check to solve, for the CHALLENGE handling (see lib/challenge).
+  challenge?: string;
 }
 
 export interface VerdictResponse {
@@ -20,6 +22,8 @@ export interface VerdictResponse {
   clearAdminToken?: boolean;
   // Where to send the visitor next, e.g. home after an Auto-Whitelist link.
   redirect?: string;
+  // A pass earned by solving the check page; the script sends it back as "cp".
+  passToken?: string;
 }
 
 // Shopify's app proxy passes the shopper's address first in X-Forwarded-For.

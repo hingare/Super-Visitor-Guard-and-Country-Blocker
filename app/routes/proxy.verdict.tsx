@@ -12,6 +12,7 @@ import { classifyUserAgent } from "../lib/bots";
 import { normalizeIp } from "../lib/ip";
 import type { NetworkInfo } from "../lib/network";
 import { decide, findGeoRedirect, isRedirectTarget, normalizePath } from "../lib/verdict";
+import { encodeChallenge, issueChallenge, issuePass, validPass, verifySolution } from "../lib/challenge";
 import {
   clientIp,
   isVisitorCode,
@@ -50,6 +51,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const ip =
     (testing && normalizeIp(param("vg_test_ip"))) || normalizeIp(clientIp(request.headers) ?? "");
   const response: VerdictResponse = { verdict: "ALLOWED" };
+  // eslint-disable-next-line no-undef
+  const secret = process.env.SHOPIFY_API_SECRET || "";
+
+  // The check page sends its answer here. A right answer earns a pass and the
+  // script reloads the page, so this request itself is neither logged nor billed.
+  const solved = param("ch");
+  if (solved && ip) {
+    return verifySolution(secret, shop.id, ip, solved, param("cx"))
+      ? json({ verdict: "ALLOWED", passToken: issuePass(secret, shop.id, ip) })
+      : json({ verdict: "BLOCKED" });
+  }
 
   // Admin Access Mode: an invitation token in the URL turns it on for this
   // device; the script then sends the token back on every page.
@@ -153,14 +165,24 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     });
     const host = param("host").toLowerCase();
     const hosts = [host, shop.shopDomain].filter(Boolean);
+    const checkIp = blockerConfig?.handling === "CHALLENGE" ? ip : null;
     if (
       blockerConfig?.handling === "REDIRECT" &&
       isRedirectTarget(blockerConfig.redirectUrl, hosts, path)
     ) {
       decision = { verdict: "ALLOWED", reason: "Redirect page" };
+    } else if (checkIp && validPass(secret, shop.id, checkIp, param("cp"))) {
+      decision = { verdict: "ALLOWED", reason: `Passed browser check (${decision.reason})` };
     } else {
       response.verdict = "BLOCKED";
       response.action = storefrontAction(blockerConfig, decision.blocker);
+      if (checkIp) {
+        response.action.challenge = encodeChallenge(issueChallenge(secret, shop.id, checkIp));
+        decision = { ...decision, reason: `Browser check shown (${decision.reason})` };
+      } else if (response.action.type === "CHALLENGE") {
+        // No IP to tie a pass to: block outright.
+        response.action.type = "CUSTOM_INFO";
+      }
     }
   }
   verdict = decision.verdict;
