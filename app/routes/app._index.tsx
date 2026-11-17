@@ -85,7 +85,7 @@ export default function Dashboard() {
         <p>Welcome to {APP_NAME}.</p>
       </section>
 
-      {data.embedStatus !== "enabled" && (
+      {data.embedStatus === "disabled" && (
         <Banner tone="warning">
           <p>
             <strong>The storefront embed is off.</strong> Blocking, visitor logs

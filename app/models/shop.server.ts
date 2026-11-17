@@ -48,7 +48,8 @@ export async function getShopWithSettings(shopDomain: string) {
 export async function markUninstalled(shopDomain: string) {
   await db.shop.updateMany({
     where: { shopDomain },
-    data: { uninstalledAt: new Date() },
+    // Shopify cancels the subscription on uninstall; a reinstall starts a new one.
+    data: { uninstalledAt: new Date(), billingActive: false, subscriptionId: null, usageLineItemId: null },
   });
 }
 
