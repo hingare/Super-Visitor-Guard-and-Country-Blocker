@@ -19,6 +19,7 @@ import { Banner } from "../components/ui";
 import { HandlingCard } from "../components/blockers";
 import { OrderSettingsCard } from "../components/order-settings";
 import { RuleListCard } from "../components/rule-list";
+import { withChangeLog } from "../models/change-log.server";
 
 const SPEC: ListSpec = { type: "VISITOR", list: "BLACKLIST" };
 
@@ -41,7 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
@@ -125,3 +126,5 @@ export default function BlockLists() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("Block Lists", pageAction);

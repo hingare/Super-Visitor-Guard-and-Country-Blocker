@@ -17,8 +17,10 @@ import { flagEmoji, timeAgo } from "../lib/format";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
 import { Banner, Card, CardSection } from "../components/ui";
 import { useResultToast } from "../components/blockers";
+import { withChangeLog } from "../models/change-log.server";
+import { describeGeoIpDatabases } from "../services/geoip-update.server";
 
-export const loader = async ({ request }: LoaderFunctionArgs) => {
+const lookupLoader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const query = (new URL(request.url).searchParams.get("ip") ?? "").trim();
@@ -65,7 +67,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
@@ -86,10 +88,50 @@ function Detail({ label, value }: { label: string; value: string }) {
   );
 }
 
+export const loader = async (args: LoaderFunctionArgs) => {
+  const [lookup, geoip] = await Promise.all([lookupLoader(args), describeGeoIpDatabases()]);
+  return { ...lookup, geoip };
+};
+
 const yesNo = (value: boolean) => (value ? "Yes" : "No");
 
+function GeoIpCard({ geoip }: { geoip: Awaited<ReturnType<typeof describeGeoIpDatabases>> }) {
+  return (
+    <Card>
+      <CardSection title="Location databases">
+        {geoip.databases.length === 0 ? (
+          <p style={{ margin: 0 }}>
+            No MaxMind database is set up, so countries, regions and networks
+            are unknown. See the README for GEOIP_CITY_DB.
+          </p>
+        ) : (
+          <ul style={{ margin: 0 }}>
+            {geoip.databases.map((database) => (
+              <li key={database.edition}>
+                <strong>{database.edition}</strong>:{" "}
+                {database.builtAt
+                  ? `built ${new Date(database.builtAt).toISOString().slice(0, 10)}`
+                  : "file not found"}
+                {database.lastCheck &&
+                  ` · last checked ${new Date(database.lastCheck).toISOString().slice(0, 16).replace("T", " ")} UTC (${
+                    database.lastResult === "failed" ? "update failed, see the server log" : database.lastResult
+                  })`}
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className={styles.helpText}>
+          {geoip.autoUpdate
+            ? "New builds from MaxMind are downloaded automatically; the app checks twice a day."
+            : "Automatic updates are off. Set MAXMIND_ACCOUNT_ID and MAXMIND_LICENSE_KEY on the server to keep these databases up to date."}
+        </p>
+      </CardSection>
+    </Card>
+  );
+}
+
 export default function IpLookup() {
-  const { query, result, error } = useLoaderData<typeof loader>();
+  const { query, result, error, geoip } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   useResultToast(fetcher);
 
@@ -216,6 +258,8 @@ export default function IpLookup() {
           </>
         )}
       </Card>
+
+      <GeoIpCard geoip={geoip} />
     </>
   );
 }
@@ -223,3 +267,5 @@ export default function IpLookup() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("IP Address Lookup", pageAction);

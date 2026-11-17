@@ -24,6 +24,7 @@ import { isChecked } from "../lib/settings";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
 import { Banner, Card, CardSection, StatusToggle } from "../components/ui";
 import { HandlingCard, useResultToast } from "../components/blockers";
+import { withChangeLog } from "../models/change-log.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -53,7 +54,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const mode = shop.settings.countryMode;
@@ -433,3 +434,5 @@ export default function CountryBlocker() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("Country Blocker", pageAction);

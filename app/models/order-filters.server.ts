@@ -15,6 +15,8 @@ import {
 import { cancelOrder, deleteOrder, getOrderSummary, waitForJob } from "../services/orders.server";
 import { sendMail } from "../services/mailer.server";
 import { APP_NAME } from "../lib/app-info";
+import { FLOW_TRIGGERS, orderCancelledPayload } from "../lib/flow";
+import { flowTriggerInUse, sendFlowTrigger } from "../services/flow.server";
 
 // What the orders/create and orders/risk_assessment_changed webhooks do.
 
@@ -88,6 +90,28 @@ async function notifyMerchant(
     });
   } catch (error) {
     console.error(`Could not send the cancelled-order notice for ${order.id}`, error);
+  }
+}
+
+// "Order cancelled by Super Visitor Guard" for Shopify Flow, when a workflow
+// uses it. Failures are only logged.
+async function notifyFlow(
+  admin: AdminApiContext,
+  shopId: string,
+  order: { id: string; action: OrderAction; source: OrderSource; reason: string },
+) {
+  if (order.action !== "CANCELLED" && order.action !== "DELETED" && order.action !== "FAILED") return;
+  try {
+    if (!(await flowTriggerInUse(shopId, FLOW_TRIGGERS.orderCancelled))) return;
+    const payload = orderCancelledPayload({
+      orderId: order.id,
+      source: order.source,
+      action: order.action,
+      reason: order.reason,
+    });
+    if (payload) await sendFlowTrigger(admin, FLOW_TRIGGERS.orderCancelled, payload);
+  } catch (error) {
+    console.error(`Could not send the Flow trigger for ${order.id}`, error);
   }
 }
 
@@ -183,6 +207,12 @@ export async function processNewOrder(
     source: decision.source,
     reason: decision.reason,
   });
+  await notifyFlow(admin, shop.id, {
+    id: facts.orderId,
+    action: result.action,
+    source: decision.source,
+    reason: decision.reason,
+  });
 }
 
 export interface RiskPayload {
@@ -240,6 +270,12 @@ export async function processRiskChange(
   });
   await notifyMerchant(admin, shop.settings, {
     name: order.name,
+    id: orderId,
+    action: result.action,
+    source: "FRAUD_PROTECT",
+    reason: decision.reason,
+  });
+  await notifyFlow(admin, shop.id, {
     id: orderId,
     action: result.action,
     source: "FRAUD_PROTECT",

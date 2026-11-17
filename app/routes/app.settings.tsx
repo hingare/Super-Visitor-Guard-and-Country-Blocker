@@ -30,6 +30,7 @@ import {
   EmptyState,
   StatusToggle,
 } from "../components/ui";
+import { withChangeLog } from "../models/change-log.server";
 
 const OWNER_LINK_LABEL = "owner";
 
@@ -70,7 +71,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
 type ActionResult = { ok: true; message: string } | { ok: false; error: string };
 
-export const action = async ({
+const pageAction = async ({
   request,
 }: ActionFunctionArgs): Promise<ActionResult> => {
   const { admin, session } = await authenticate.admin(request);
@@ -415,3 +416,5 @@ export default function GeneralSettings() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("General Settings", pageAction);

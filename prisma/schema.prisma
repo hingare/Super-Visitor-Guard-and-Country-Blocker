@@ -153,6 +153,8 @@ model Shop {
   usageRecords   UsageRecord[]
   accessLinks    AccessLink[]
   geoRedirects   GeoRedirect[]
+  changeLogs     ChangeLog[]
+  flowTriggers   FlowTriggerUsage[]
 }
 
 model Settings {
@@ -350,4 +352,37 @@ model UsageRecord {
 
   @@unique([shopId, periodStart, views])
   @@index([shopId, periodStart])
+}
+
+// Change History: what was changed in the app's admin pages, and by whom.
+model ChangeLog {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  // The admin page, e.g. "IP Blocker".
+  page      String
+  // What happened, e.g. "Rule added".
+  summary   String
+  // The form values behind it, e.g. "type: IP · value: 203.0.113.5".
+  details   String?
+  // Shopify staff member id from the admin session token, when known.
+  staffId   String?
+  createdAt DateTime @default(now())
+
+  @@index([shopId, createdAt])
+}
+
+// Whether the shop has an enabled Shopify Flow workflow using one of the
+// app's triggers, from Flow's trigger lifecycle callbacks. Triggers are only
+// sent when one does.
+model FlowTriggerUsage {
+  id        String   @id @default(cuid())
+  shopId    String
+  shop      Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  trigger   String
+  enabled   Boolean
+  // The callback's own timestamp; older callbacks are ignored.
+  updatedAt DateTime
+
+  @@unique([shopId, trigger])
 }

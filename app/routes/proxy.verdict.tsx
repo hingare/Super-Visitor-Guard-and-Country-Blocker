@@ -12,6 +12,8 @@ import { classifyUserAgent } from "../lib/bots";
 import { normalizeIp } from "../lib/ip";
 import type { NetworkInfo } from "../lib/network";
 import { decide, findGeoRedirect, isRedirectTarget, normalizePath } from "../lib/verdict";
+import { FLOW_TRIGGERS, visitorBlockedPayload } from "../lib/flow";
+import { sendVisitorBlocked } from "../services/flow.server";
 import {
   clientIp,
   isVisitorCode,
@@ -172,6 +174,21 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     response.redirect = geoRedirect.targetUrl;
     verdict = "REDIRECTED";
     decision = { verdict: "ALLOWED", reason: `Geolocation redirect: ${geoRedirect.targetUrl}` };
+  }
+
+  if (decision.verdict === "BLOCKED" && ip) {
+    sendVisitorBlocked(
+      shop,
+      ip,
+      FLOW_TRIGGERS.visitorBlocked,
+      visitorBlockedPayload({
+        ip,
+        country: geo?.country ?? null,
+        blocker: decision.blocker,
+        reason: decision.reason,
+        visitorCode: code,
+      }),
+    );
   }
 
   // Record the visit. Admin traffic is not logged.

@@ -1,0 +1,7 @@
+# Shopify Flow tells the app when a store turns on or off a workflow that
+# uses one of its triggers. Handled by: /app/routes/flow.lifecycle.tsx
+[[extensions]]
+name = "Super Visitor Guard Flow lifecycle"
+handle = "flow-lifecycle"
+type = "flow_trigger_lifecycle_callback"
+url = "/flow/lifecycle"

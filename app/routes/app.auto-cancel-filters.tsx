@@ -19,6 +19,7 @@ import { ReloadButton, SearchBox } from "../components/blockers";
 import { OrderLogTable } from "../components/order-log";
 import { OrderSettingsCard } from "../components/order-settings";
 import { RuleListCard } from "../components/rule-list";
+import { withChangeLog } from "../models/change-log.server";
 
 const SPEC: ListSpec = {
   type: ["AUTO_CANCEL_NAME", "AUTO_CANCEL_EMAIL", "AUTO_CANCEL_PHONE"],
@@ -41,7 +42,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { list, orders, orderSettings: pickOrderSettings(shop.settings) };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
@@ -118,3 +119,5 @@ export default function AutoCancelFilters() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("Auto-cancel filters", pageAction);
