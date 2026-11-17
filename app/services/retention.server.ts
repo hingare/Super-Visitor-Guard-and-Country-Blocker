@@ -1,7 +1,9 @@
 import db from "../db.server";
+import { deleteExpiredRules } from "../models/rules.server";
 
 // Deletes visit records older than VISIT_RETENTION_DAYS (default 90) once an
-// hour, in batches so a large backlog never holds a long lock.
+// hour, in batches so a large backlog never holds a long lock. The same job
+// removes rules whose end date has passed.
 
 /* eslint-disable no-undef */
 const RETENTION_DAYS = Math.max(7, Number(process.env.VISIT_RETENTION_DAYS) || 90);
@@ -30,8 +32,10 @@ const globalForRetention = globalThis as unknown as { visitRetentionTimer?: Node
 
 export function startRetentionJob() {
   if (globalForRetention.visitRetentionTimer) return;
-  const run = () =>
+  const run = () => {
     deleteOldVisits().catch((error) => console.error("Visit retention cleanup failed", error));
+    deleteExpiredRules().catch((error) => console.error("Expired rule cleanup failed", error));
+  };
   globalForRetention.visitRetentionTimer = setInterval(run, HOUR_MS);
   globalForRetention.visitRetentionTimer.unref();
   setTimeout(run, 60_000).unref();

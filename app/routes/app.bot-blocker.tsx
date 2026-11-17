@@ -138,6 +138,7 @@ export default function BotBlocker() {
       </Card>
 
       <RuleListCard
+        expiry
         data={data.organizations}
         prefix="org"
         help={
@@ -185,6 +186,7 @@ export default function BotBlocker() {
       </Banner>
 
       <RuleListCard
+        expiry
         data={data.crawlers}
         prefix="bot"
         help={

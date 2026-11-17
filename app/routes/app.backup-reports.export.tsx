@@ -1,6 +1,7 @@
 import type { LoaderFunctionArgs } from "react-router";
 
 import db from "../db.server";
+import { activeRules } from "../models/rules.server";
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
 import { rulesToCsv } from "../lib/rule-backup";
@@ -11,9 +12,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const rules = await db.rule.findMany({
-    where: { shopId: shop.id },
+    where: { shopId: shop.id, ...activeRules() },
     orderBy: [{ type: "asc" }, { list: "asc" }, { createdAt: "asc" }],
-    select: { type: true, list: true, matchType: true, value: true, comment: true, enabled: true },
+    select: { type: true, list: true, matchType: true, value: true, comment: true, enabled: true, expiresAt: true },
   });
   const handle = session.shop.replace(/\.myshopify\.com$/, "");
   return csvResponse(rulesToCsv(rules), `rules-backup-${handle}-${dateStamp()}.csv`);

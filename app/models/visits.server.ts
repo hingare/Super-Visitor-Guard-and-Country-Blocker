@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import db from "../db.server";
+import { activeRules } from "./rules.server";
 import type { VisitFilters } from "../lib/visit-filters";
 import { normalizeIp } from "../lib/ip";
 
@@ -46,7 +47,7 @@ export async function listVisits(shopId: string, filters: VisitFilters) {
 export async function blockedVisitorCodes(shopId: string, codes: string[]) {
   if (codes.length === 0) return new Set<string>();
   const rules = await db.rule.findMany({
-    where: { shopId, type: "VISITOR", list: "BLACKLIST", value: { in: codes } },
+    where: { shopId, type: "VISITOR", list: "BLACKLIST", enabled: true, value: { in: codes }, ...activeRules() },
     select: { value: true },
   });
   return new Set(rules.map((rule) => rule.value));

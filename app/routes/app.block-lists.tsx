@@ -76,6 +76,7 @@ export default function BlockLists() {
       </Banner>
 
       <RuleListCard
+        expiry
         data={data.list}
         help={
           <>

@@ -2,6 +2,7 @@ import type { RuleList } from "@prisma/client";
 import { addRules, deleteRules, listRules } from "./rules.server";
 import type { ActionResult } from "./blocker.server";
 import { isListRuleType, parseRuleValue, type ListRuleType } from "../lib/rule-specs";
+import { canExpire, parseExpiry } from "../lib/limits";
 
 // Shared loader and action plumbing for the list cards on the blocker and
 // order filter pages (see RuleListCard).
@@ -55,7 +56,8 @@ export async function handleListIntent(
   const parsed = parseRuleValue(type, String(form.get("value") ?? ""), matchType);
   if (!parsed.ok) return parsed;
   const comment = String(form.get("comment") ?? "").trim().slice(0, 200) || null;
-  const added = await addRules(shopId, type, list, [{ value: parsed.value, matchType, comment }]);
+  const expiresAt = canExpire(type) ? parseExpiry(form.get("expires")) : null;
+  const added = await addRules(shopId, type, list, [{ value: parsed.value, matchType, comment, expiresAt }]);
   return added
     ? { ok: true, message: "Rule added" }
     : { ok: false, error: "That rule already exists." };
