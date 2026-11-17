@@ -4,7 +4,7 @@ import db from "../db.server";
 // hour, in batches so a large backlog never holds a long lock.
 
 /* eslint-disable no-undef */
-const RETENTION_DAYS = Math.max(7, Number(process.env.VISIT_RETENTION_DAYS) || 90);
+export const RETENTION_DAYS = Math.max(7, Number(process.env.VISIT_RETENTION_DAYS) || 90);
 /* eslint-enable no-undef */
 const HOUR_MS = 60 * 60 * 1000;
 const BATCH = 5000;

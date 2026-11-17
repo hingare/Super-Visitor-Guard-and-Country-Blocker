@@ -840,3 +840,111 @@ details.menu > summary::-webkit-details-marker {
   background: var(--vg-green);
   color: #fff;
 }
+
+/* Analytics */
+
+.chart {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.chartGridLine {
+  stroke: var(--vg-border);
+  stroke-width: 1;
+}
+
+.chartAxisText {
+  fill: var(--vg-subdued);
+  font-size: 11px;
+}
+
+.chartLegend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+  color: var(--vg-subdued);
+}
+
+.chartLegendItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chartSwatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+.barList {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.barRow {
+  display: grid;
+  grid-template-columns: minmax(110px, 1fr) minmax(80px, 2fr) 10.5em;
+  align-items: center;
+  gap: 12px;
+}
+
+.barTrack {
+  display: flex;
+  height: 12px;
+  border-radius: 6px;
+  background: #f1f2f3;
+  overflow: hidden;
+}
+
+.barValue {
+  min-width: 64px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.statGridWide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.analyticsPair {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 24px;
+  align-items: start;
+}
+
+.analyticsPair > .card {
+  margin: 0;
+}
+
+@media (max-width: 560px) {
+  .barRow {
+    grid-template-columns: 1fr auto;
+    gap: 4px 12px;
+  }
+
+  .barRow > :first-child {
+    grid-column: 1 / -1;
+  }
+
+  .analyticsPair {
+    grid-template-columns: 1fr;
+  }
+}

@@ -15,6 +15,7 @@ const SHOP_IDENTITY_QUERY = `#graphql
     shop {
       name
       shopOwnerName
+      ianaTimezone
     }
   }`;
 
@@ -32,16 +33,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     }
   }
 
-  // The owner's name is looked up once and kept with the shop, so later
-  // page loads need no extra Admin API call.
+  // The owner's name and the store's time zone are looked up once and kept
+  // with the shop, so later page loads need no extra Admin API call.
   let ownerName = shop.ownerName ?? "";
   const shopHandle = session.shop.replace(/\.myshopify\.com$/, "");
-  if (!ownerName) {
+  if (!ownerName || !shop.timezone) {
     try {
       const response = await admin.graphql(SHOP_IDENTITY_QUERY);
       const json = await response.json();
-      ownerName = json.data?.shop?.shopOwnerName ?? json.data?.shop?.name ?? "";
-      if (ownerName) await db.shop.update({ where: { id: shop.id }, data: { ownerName } });
+      ownerName = ownerName || json.data?.shop?.shopOwnerName || json.data?.shop?.name || "";
+      const timezone: string | null = json.data?.shop?.ianaTimezone ?? null;
+      if (ownerName || timezone) {
+        await db.shop.update({
+          where: { id: shop.id },
+          data: { ...(ownerName ? { ownerName } : {}), ...(timezone ? { timezone } : {}) },
+        });
+      }
     } catch (error) {
       console.error("Could not load shop identity", error);
     }

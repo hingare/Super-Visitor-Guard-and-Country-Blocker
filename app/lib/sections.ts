@@ -35,6 +35,13 @@ export const SECTION_GROUPS: SectionGroup[] = [
         icon: "search-list",
       },
       {
+        slug: "analytics",
+        title: "Analytics",
+        description:
+          "Charts of allowed and blocked visits, top countries and the most common block reasons.",
+        icon: "chart-vertical",
+      },
+      {
         slug: "settings",
         title: "General Settings",
         description: "",
@@ -159,7 +166,7 @@ export const SECTION_GROUPS: SectionGroup[] = [
         slug: "backup-reports",
         title: "Backup & Reports",
         description:
-          "Back up and restore all your rules, export visitor records, and get a weekly summary by email.",
+          "Back up and restore all your rules, export visitor records, and get a weekly summary or blocking alerts by email.",
         icon: "export",
       },
     ],
