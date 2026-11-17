@@ -1,0 +1,33 @@
+# Shopify Flow trigger, sent by app/routes/proxy.verdict.tsx the first time
+# in a day that a storefront blocker stops a visitor's IP address.
+[[extensions]]
+name = "Visitor blocked by Super Visitor Guard"
+type = "flow_trigger"
+handle = "visitor-blocked"
+description = "A storefront blocker stopped a visitor. Sent once a day for each IP address."
+
+  [settings]
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "IP address"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Country code"
+  description = "Two-letter country code, or empty when unknown."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Blocker"
+  description = "Which blocker stopped the visitor, such as COUNTRY or IP."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Reason"
+  description = "The rule that matched, such as Country: RU."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Visitor ID"
+  description = "The app's visitor id, such as CT-123456789."

@@ -1,0 +1,27 @@
+# Shopify Flow trigger, sent by app/models/order-filters.server.ts after the
+# app cancels, deletes or fails to cancel an order.
+[[extensions]]
+name = "Order cancelled by Super Visitor Guard"
+type = "flow_trigger"
+handle = "order-cancelled"
+description = "An order matched one of the app's order filters (Fraud Protect, Auto-cancel filters, Block Lists or the IP Blocker) and the app acted on it."
+
+  [settings]
+
+  [[settings.fields]]
+  type = "order_reference"
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Filter"
+  description = "Which filter matched: Fraud Protect, Auto-cancel filters, Block Lists or IP Blocker."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Result"
+  description = "What the app did: cancelled, deleted or failed."
+
+  [[settings.fields]]
+  type = "single_line_text_field"
+  key = "Reason"
+  description = "Why the order matched, as shown in the app's order log."

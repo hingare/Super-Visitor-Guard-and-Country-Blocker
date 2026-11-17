@@ -22,6 +22,7 @@ import { ReloadButton, SearchBox, useResultToast } from "../components/blockers"
 import { OrderLogTable } from "../components/order-log";
 import { OrderSettingsCard } from "../components/order-settings";
 import { RuleListCard } from "../components/rule-list";
+import { withChangeLog } from "../models/change-log.server";
 
 const WHITELIST: ListSpec = { type: "FRAUD_WHITELIST_EMAIL", list: "WHITELIST", prefix: "w" };
 
@@ -62,7 +63,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { admin, session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
@@ -251,3 +252,5 @@ export default function FraudProtect() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("Fraud Protect", pageAction);

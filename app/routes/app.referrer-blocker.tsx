@@ -15,6 +15,7 @@ import { PageHeader } from "../components/AppFrame";
 import { Banner, ContactUsButton, REPORTS_NOTICE } from "../components/ui";
 import { HandlingCard } from "../components/blockers";
 import { RuleListCard } from "../components/rule-list";
+import { withChangeLog } from "../models/change-log.server";
 
 const SPEC: ListSpec = { type: "REFERRER", list: "BLACKLIST" };
 
@@ -28,7 +29,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return { list, handling };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
@@ -98,3 +99,5 @@ export default function ReferrerBlocker() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("Referrer Blocker", pageAction);

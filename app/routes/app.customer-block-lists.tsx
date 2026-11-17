@@ -23,6 +23,7 @@ import { PageHeader, frameStyles as styles } from "../components/AppFrame";
 import { Banner, Card, CardSection, ContactUsButton, StatusToggle } from "../components/ui";
 import { ReloadButton, useResultToast } from "../components/blockers";
 import { RuleListCard } from "../components/rule-list";
+import { withChangeLog } from "../models/change-log.server";
 
 const SPEC: ListSpec = { type: [...CHECKOUT_RULE_TYPES], list: "BLACKLIST" };
 
@@ -44,7 +45,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { admin, session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
@@ -198,3 +199,5 @@ export default function CustomerBlockLists() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("Customer Block Lists", pageAction);

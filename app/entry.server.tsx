@@ -7,9 +7,11 @@ import { isbot } from "isbot";
 import { addDocumentResponseHeaders } from "./shopify.server";
 import { startRetentionJob } from "./services/retention.server";
 import { startWeeklyReportJob } from "./services/weekly-report.server";
+import { startGeoIpUpdateJob } from "./services/geoip-update.server";
 
 startRetentionJob();
 startWeeklyReportJob();
+startGeoIpUpdateJob();
 
 export const streamTimeout = 5000;
 

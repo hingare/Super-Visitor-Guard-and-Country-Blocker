@@ -2,7 +2,10 @@ import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
 import { useLoaderData, useRevalidator } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
+import db from "../db.server";
 import { authenticate } from "../shopify.server";
+import { getShopWithSettings } from "../models/shop.server";
+import { FLOW_TRIGGERS } from "../lib/flow";
 import { getEmbedStatus } from "../models/theme.server";
 import { themeEditorEmbedUrl } from "../lib/theme-embed";
 import { APP_NAME } from "../lib/app-info";
@@ -11,9 +14,15 @@ import { Banner, Card, CardSection } from "../components/ui";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
-  const embed = await getEmbedStatus(admin);
+  const [embed, shop] = await Promise.all([getEmbedStatus(admin), getShopWithSettings(session.shop)]);
+  const usage = await db.flowTriggerUsage.findMany({ where: { shopId: shop.id } });
+  const flowTriggers = Object.values(FLOW_TRIGGERS).map((trigger) => ({
+    name: trigger.name,
+    inUse: usage.some((row) => row.trigger === trigger.handle && row.enabled),
+  }));
 
   return {
+    flowTriggers,
     embedStatus: embed.status,
     themeName: embed.themeName,
     // eslint-disable-next-line no-undef
@@ -22,7 +31,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export default function ExtensionPage() {
-  const { embedStatus, themeName, embedUrl } = useLoaderData<typeof loader>();
+  const { embedStatus, themeName, embedUrl, flowTriggers } = useLoaderData<typeof loader>();
   const revalidator = useRevalidator();
 
   return (
@@ -94,6 +103,34 @@ export default function ExtensionPage() {
               then click Save in the top right.
             </h3>
           </div>
+        </CardSection>
+      </Card>
+
+      <Card>
+        <CardSection title="Shopify Flow">
+          <p style={{ marginTop: 0 }}>
+            Start your own workflows in Shopify Flow when {APP_NAME} acts, for
+            example to tag a cancelled order, message your team or add a
+            blocked visitor to a spreadsheet. In Flow, create a workflow and
+            pick one of these triggers:
+          </p>
+          <ul>
+            {flowTriggers.map((trigger) => (
+              <li key={trigger.name}>
+                <strong>{trigger.name}</strong>{" "}
+                <span className={styles.muted}>
+                  ({trigger.inUse ? "used by an active workflow" : "not used yet"})
+                </span>
+              </li>
+            ))}
+          </ul>
+          <p className={styles.helpText}>
+            &quot;Order cancelled&quot; carries the order, the filter that matched,
+            the result and the reason. &quot;Visitor blocked&quot; carries the IP
+            address, country, blocker, reason and visitor id, and is sent at most
+            once a day for each IP address. Triggers are only sent while a
+            workflow uses them.
+          </p>
         </CardSection>
       </Card>
     </>

@@ -17,6 +17,7 @@ import { isChecked } from "../lib/settings";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
 import { Banner, Card, CardSection, EmptyState, StatusToggle } from "../components/ui";
 import { HandlingCard, Pagination, SearchBox, useResultToast } from "../components/blockers";
+import { withChangeLog } from "../models/change-log.server";
 
 const MAX_BULK = 5000;
 
@@ -47,7 +48,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   };
 };
 
-export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
+const pageAction = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
   const { session } = await authenticate.admin(request);
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
@@ -437,3 +438,5 @@ export default function IpBlocker() {
 export const headers: HeadersFunction = (headersArgs) => {
   return boundary.headers(headersArgs);
 };
+
+export const action = withChangeLog("IP Blocker", pageAction);

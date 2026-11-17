@@ -150,6 +150,12 @@ export const SECTION_GROUPS: SectionGroup[] = [
         icon: "domain-redirect",
       },
       {
+        slug: "change-history",
+        title: "Change History",
+        description: "See who changed which rule or setting, and when.",
+        icon: "clock",
+      },
+      {
         slug: "ip-lookup",
         title: "IP Address Lookup",
         description: "Look up location, provider and risk details for any IP address.",

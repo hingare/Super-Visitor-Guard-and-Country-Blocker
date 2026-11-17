@@ -57,6 +57,14 @@ nodes come from the Tor Project's public list, refreshed hourly (set
 production you can test a country with `?vg_test_country=RU` on the verdict
 request.
 
+To keep the databases current, set `MAXMIND_ACCOUNT_ID` and
+`MAXMIND_LICENSE_KEY` (from your MaxMind account). The app then checks twice
+a day and downloads a newer build of each configured file when MaxMind
+publishes one. The edition comes from the file name (`GeoLite2-City.mmdb`), or
+from `GEOIP_CITY_EDITION`, `GEOIP_ASN_EDITION` and `GEOIP_ANON_EDITION`. The
+folder holding the files must be writable by the app. The IP Address Lookup
+page shows each database's build date and the last check.
+
 ## How blocking works
 
 The app embed loads `visitor-guard.js` on every storefront page. The script
