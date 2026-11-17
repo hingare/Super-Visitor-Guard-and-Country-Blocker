@@ -110,7 +110,7 @@ async function loadVerdictConfig(shopId: string, settings: Settings): Promise<Ve
   const geoRedirects = await db.geoRedirect.findMany({
     where: { shopId, enabled: true },
     orderBy: { createdAt: "asc" },
-    select: { id: true, countries: true, targetUrl: true },
+    select: { id: true, countries: true, targetUrl: true, keepPath: true, askFirst: true },
   });
   const rules = await db.rule.findMany({
     where: {

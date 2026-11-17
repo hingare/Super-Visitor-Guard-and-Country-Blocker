@@ -161,6 +161,7 @@ export async function processNewOrder(
     ipBlacklist: verdictConfig.ipBlacklist,
     deleteOrdersFromBlockedIps: shop.settings.deleteOrdersFromBlockedIps,
     deleteCodOrders: shop.settings.deleteCodOrders,
+    cancelDisposableEmails: shop.settings.cancelDisposableEmails,
   });
   if (!decision) return;
 

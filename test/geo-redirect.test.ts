@@ -14,6 +14,8 @@ describe("parseGeoRedirectForm", () => {
       ok: true,
       countries: ["DE", "AT"],
       targetUrl: "https://de.example.com/",
+      keepPath: false,
+      askFirst: false,
     });
   });
 

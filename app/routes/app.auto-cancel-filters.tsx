@@ -3,8 +3,10 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Link, useLoaderData } from "react-router";
+import { Link, useFetcher, useLoaderData } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+
+import db from "../db.server";
 
 import { authenticate } from "../shopify.server";
 import { getShopWithSettings } from "../models/shop.server";
@@ -14,8 +16,10 @@ import { saveOrderSetting } from "../models/order-settings.server";
 import { listOrderFlags } from "../models/order-flags.server";
 import { pickOrderSettings } from "../lib/order-settings";
 import { PageHeader, frameStyles as styles } from "../components/AppFrame";
-import { Banner, Card, CardSection } from "../components/ui";
-import { ReloadButton, SearchBox } from "../components/blockers";
+import { Banner, Card, CardSection, StatusToggle } from "../components/ui";
+import { ReloadButton, SearchBox, useResultToast } from "../components/blockers";
+import { isChecked } from "../lib/settings";
+import { DISPOSABLE_EMAIL_DOMAINS } from "../lib/disposable-emails";
 import { OrderLogTable } from "../components/order-log";
 import { OrderSettingsCard } from "../components/order-settings";
 import { RuleListCard } from "../components/rule-list";
@@ -38,7 +42,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       page: Number(url.searchParams.get("opage")) || 1,
     }),
   ]);
-  return { list, orders, orderSettings: pickOrderSettings(shop.settings) };
+  return {
+    list,
+    orders,
+    orderSettings: pickOrderSettings(shop.settings),
+    disposable: {
+      enabled: shop.settings.cancelDisposableEmails,
+      count: DISPOSABLE_EMAIL_DOMAINS.size,
+      domains: [...DISPOSABLE_EMAIL_DOMAINS].sort(),
+    },
+  };
 };
 
 export const action = async ({ request }: ActionFunctionArgs): Promise<ActionResult> => {
@@ -46,8 +59,65 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
   const shop = await getShopWithSettings(session.shop);
   const form = await request.formData();
   if (form.get("intent") === "orderSetting") return saveOrderSetting(shop.id, form);
+  if (form.get("intent") === "disposable") {
+    const enabled = isChecked(form.get("enabled"));
+    await db.settings.update({ where: { shopId: shop.id }, data: { cancelDisposableEmails: enabled } });
+    return {
+      ok: true,
+      message: enabled ? "Throwaway email orders will be cancelled" : "Throwaway email filter off",
+    };
+  }
   return (await handleListIntent(shop.id, form, [SPEC])) ?? { ok: false, error: "Unknown action." };
 };
+
+function DisposableEmailCard({
+  enabled,
+  count,
+  domains,
+}: {
+  enabled: boolean;
+  count: number;
+  domains: string[];
+}) {
+  const fetcher = useFetcher<ActionResult>();
+  useResultToast(fetcher);
+  const pending = fetcher.formData ? isChecked(fetcher.formData.get("enabled")) : enabled;
+
+  return (
+    <Card>
+      <CardSection title="Throwaway email addresses">
+        <StatusToggle
+          name="cancelDisposableEmails"
+          enabled={pending}
+          disabled={fetcher.state !== "idle"}
+          onToggle={(next) =>
+            fetcher.submit(
+              next ? { intent: "disposable", enabled: "on" } : { intent: "disposable" },
+              { method: "POST" },
+            )
+          }
+          label={`Cancel orders from throwaway email services (${pending ? "Enabled" : "Disabled"})`}
+        />
+        <p className={styles.helpText}>
+          Orders whose buyer email is at one of {count} known throwaway email
+          services, such as mailinator.com or yopmail.com, are cancelled like
+          any other auto-cancel filter match. Ordinary providers such as Gmail
+          or Outlook are never on this list.
+        </p>
+        <details>
+          <summary className={styles.helpText}>Show the {count} domains</summary>
+          <p className={styles.muted} style={{ columnWidth: "14em", fontSize: 13, lineHeight: 1.7 }}>
+            {domains.map((domain) => (
+              <span key={domain} style={{ display: "block" }}>
+                {domain}
+              </span>
+            ))}
+          </p>
+        </details>
+      </CardSection>
+    </Card>
+  );
+}
 
 export default function AutoCancelFilters() {
   const data = useLoaderData<typeof loader>();
@@ -96,6 +166,8 @@ export default function AutoCancelFilters() {
         matchTypes
         extraActions={<ReloadButton />}
       />
+
+      <DisposableEmailCard {...data.disposable} />
 
       <OrderSettingsCard values={data.orderSettings} />
 

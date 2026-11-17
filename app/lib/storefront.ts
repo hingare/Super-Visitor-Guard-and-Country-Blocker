@@ -9,6 +9,36 @@ export interface StorefrontAction {
   redirectUrl?: string;
   templateId?: string;
   sectionSelector?: string;
+  // Page text in the visitor's language (see lib/visitor-texts).
+  texts?: PageTexts;
+  // Store logo and color, when the merchant turned on the block page look.
+  // Empty fields fall back to the brand the theme embed reads from Shopify.
+  brand?: StorefrontBrand;
+}
+
+export interface PageTexts {
+  lang: string;
+  dir: "ltr" | "rtl";
+  checkTitle: string;
+  checkNote: string;
+}
+
+export interface StorefrontBrand {
+  logo?: string;
+  color?: string;
+}
+
+// A banner offering the visitor's regional store (Geolocation Redirects
+// with "ask first").
+export interface GeoOffer {
+  url: string;
+  country: string;
+  text: string;
+  go: string;
+  stay: string;
+  lang: string;
+  dir: "ltr" | "rtl";
+  brand?: StorefrontBrand;
 }
 
 export interface VerdictResponse {
@@ -20,6 +50,7 @@ export interface VerdictResponse {
   clearAdminToken?: boolean;
   // Where to send the visitor next, e.g. home after an Auto-Whitelist link.
   redirect?: string;
+  geoOffer?: GeoOffer;
 }
 
 // Shopify's app proxy passes the shopper's address first in X-Forwarded-For.

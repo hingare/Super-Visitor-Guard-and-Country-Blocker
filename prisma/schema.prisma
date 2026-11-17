@@ -187,6 +187,9 @@ model Settings {
   deleteCodOrders Boolean @default(false)
   notifyEmail     String?
 
+  // Auto-cancel filters: cancel orders from throwaway email services.
+  cancelDisposableEmails Boolean @default(false)
+
   // Fraud Protect
   fraudProtectEnabled Boolean @default(false)
   cancelHighRisk      Boolean @default(true)
@@ -195,6 +198,13 @@ model Settings {
 
   // Content Protection
   contentProtectionEnabled Boolean @default(false)
+
+  // Block page look: the store's logo and brand color on the block page,
+  // the browser check page and the geolocation offer. Empty overrides use
+  // the brand set in Shopify (Settings > Brand).
+  blockPageBranding Boolean @default(false)
+  blockPageLogoUrl  String?
+  blockPageColor    String?
 
   // Weekly email summary
   weeklyReportEnabled Boolean   @default(false)
@@ -334,6 +344,10 @@ model GeoRedirect {
   // ISO country codes
   countries String[]
   targetUrl String
+  // Send visitors to the same page on the target store, not its home page.
+  keepPath  Boolean  @default(false)
+  // Offer the move in a banner instead of redirecting straight away.
+  askFirst  Boolean  @default(false)
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
 }

@@ -2,6 +2,7 @@ import { buildIdentity, findCustomerMatch, normalizeEmail, type CustomerIdentity
 import { ipMatches, normalizeIp, parseIp, type ParsedIp } from "./ip";
 import type { IpRule } from "./verdict";
 import { isVisitorCode } from "./storefront";
+import { disposableDomain } from "./disposable-emails";
 
 // Decisions behind the order webhooks: which new orders to cancel or delete
 // (Auto-cancel filters, Block Lists, IP Blocker) and which risky orders
@@ -104,6 +105,8 @@ export interface OrderFilterConfig {
   ipBlacklist: IpRule[];
   deleteOrdersFromBlockedIps: boolean;
   deleteCodOrders: boolean;
+  // Cancel orders whose buyer email is at a throwaway email service.
+  cancelDisposableEmails?: boolean;
 }
 
 const FIELD_LABELS: Record<CustomerRule["by"], string> = {
@@ -137,6 +140,19 @@ export function decideOrder(facts: OrderFacts, config: OrderFilterConfig): Order
       reason: `Buyer ${FIELD_LABELS[rule.by]} matches auto-cancel filter "${rule.value}"`,
       delete: deleteCod,
     };
+  }
+
+  if (config.cancelDisposableEmails) {
+    for (const email of facts.identity.emails) {
+      const domain = disposableDomain(email);
+      if (domain) {
+        return {
+          source: "AUTO_CANCEL",
+          reason: `Buyer email ${email} uses a throwaway email service (${domain})`,
+          delete: deleteCod,
+        };
+      }
+    }
   }
 
   if (facts.visitorCode && config.blockedVisitors.has(facts.visitorCode)) {

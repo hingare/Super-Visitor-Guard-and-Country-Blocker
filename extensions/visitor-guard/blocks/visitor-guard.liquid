@@ -23,7 +23,12 @@
     designMode: {{ request.design_mode | json }},
     pageType: {{ request.page_type | json }},
     hasCart: {% if cart.item_count > 0 %}true{% else %}false{% endif %},
-    cartVisitor: {{ cart.attributes._vg_visitor | default: "" | json }}
+    cartVisitor: {{ cart.attributes._vg_visitor | default: "" | json }},
+    locale: {{ request.locale.iso_code | json }},
+    brand: {
+      logo: {% if shop.brand.logo %}{{ shop.brand.logo | image_url: width: 320 | json }}{% else %}""{% endif %},
+      color: {{ shop.brand.colors.primary[0].background | default: "" | json }}
+    }
   };
 </script>
 
