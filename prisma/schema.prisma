@@ -129,6 +129,8 @@ model Shop {
   id                 String    @id @default(cuid())
   shopDomain         String    @unique
   ownerName          String?
+  // IANA time zone from Shopify, for daily charts and alert emails.
+  timezone           String?
   plan               Plan      @default(PAY_AS_YOU_GO)
   // Public, non-secret key the storefront script sends to the verdict API.
   publicKey          String    @unique @default(cuid())
@@ -200,6 +202,13 @@ model Settings {
   weeklyReportEnabled Boolean   @default(false)
   reportEmail         String?
   lastReportAt        DateTime?
+
+  // Email alert when blocked page views jump
+  spikeAlertEnabled   Boolean   @default(false)
+  // Blocked page views in one hour that count as a jump.
+  spikeAlertThreshold Int       @default(100)
+  alertEmail          String?
+  lastSpikeAlertAt    DateTime?
 
   updatedAt DateTime @updatedAt
 }

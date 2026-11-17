@@ -15,6 +15,8 @@ import { invalidateVerdictConfig } from "../models/rules.server";
 import { syncCheckoutValidation } from "../models/checkout-validation.server";
 import { mailConfigured } from "../services/mailer.server";
 import { sendReport } from "../services/weekly-report.server";
+import { sendSpikeAlert } from "../services/spike-alert.server";
+import { ALERT_COOLDOWN_MS, MAX_THRESHOLD, MIN_THRESHOLD, SPIKE_FACTOR, parseThreshold } from "../lib/spike-alert";
 import { BACKUP_MAX_ROWS, parseBackupCsv } from "../lib/rule-backup";
 import { downloadFile } from "../lib/download";
 import { isChecked } from "../lib/settings";
@@ -51,6 +53,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     weeklyReportEnabled: shop.settings.weeklyReportEnabled,
     reportEmail: suggestedEmail,
     lastReportAt: shop.settings.lastReportAt,
+    spikeAlertEnabled: shop.settings.spikeAlertEnabled,
+    spikeAlertThreshold: shop.settings.spikeAlertThreshold,
+    alertEmail: shop.settings.alertEmail ?? suggestedEmail,
+    lastSpikeAlertAt: shop.settings.lastSpikeAlertAt,
     canSend: mailConfigured(),
   };
 };
@@ -89,6 +95,45 @@ export const action = async ({ request }: ActionFunctionArgs): Promise<ActionRes
         return { ok: true, message: `Summary sent to ${to}` };
       } catch (error) {
         console.error("Could not send the summary", error);
+        return { ok: false, error: "The email could not be sent. Try again later." };
+      }
+    }
+    case "alerts": {
+      const spikeAlertEnabled = isChecked(form.get("enabled"));
+      const alertEmail = String(form.get("email") ?? "").trim().slice(0, 200);
+      const threshold = parseThreshold(form.get("threshold"));
+      if (threshold === null) {
+        return {
+          ok: false,
+          error: `Enter an alert level between ${MIN_THRESHOLD} and ${MAX_THRESHOLD.toLocaleString("en-US")}.`,
+        };
+      }
+      if (spikeAlertEnabled && !EMAIL.test(alertEmail)) {
+        return { ok: false, error: "Enter the email address alerts should go to." };
+      }
+      await db.settings.update({
+        where: { shopId: shop.id },
+        data: {
+          spikeAlertEnabled,
+          spikeAlertThreshold: threshold,
+          ...(EMAIL.test(alertEmail) ? { alertEmail } : {}),
+        },
+      });
+      return {
+        ok: true,
+        message: spikeAlertEnabled ? "Blocking alerts are on" : "Blocking alerts saved (off)",
+      };
+    }
+    case "testAlert": {
+      const to = String(form.get("email") ?? "").trim();
+      const threshold = parseThreshold(form.get("threshold")) ?? shop.settings.spikeAlertThreshold;
+      if (!EMAIL.test(to)) return { ok: false, error: "Enter the email address alerts should go to." };
+      if (!mailConfigured()) return { ok: false, error: "Email sending is not set up on this app yet." };
+      try {
+        await sendSpikeAlert(shop, to, threshold, { test: true });
+        return { ok: true, message: `Test alert sent to ${to}` };
+      } catch (error) {
+        console.error("Could not send the test alert", error);
         return { ok: false, error: "The email could not be sent. Try again later." };
       }
     }
@@ -133,6 +178,8 @@ export default function BackupAndReports() {
   const shopify = useAppBridge();
   const importForm = useRef<HTMLFormElement>(null);
   const [email, setEmail] = useState(data.reportEmail);
+  const [alertEmail, setAlertEmail] = useState(data.alertEmail);
+  const [threshold, setThreshold] = useState(String(data.spikeAlertThreshold));
   const [exporting, setExporting] = useState(false);
   useResultToast(fetcher);
   useResultToast(importFetcher, () => importForm.current?.reset());
@@ -156,7 +203,7 @@ export default function BackupAndReports() {
     <>
       <PageHeader
         title="Backup & Reports"
-        subtitle="Back up and restore all your rules, export visitor records, and get a weekly summary by email."
+        subtitle="Back up and restore all your rules, export visitor records, and get a weekly summary or blocking alerts by email."
       />
 
       <Card>
@@ -298,6 +345,100 @@ export default function BackupAndReports() {
                 onClick={() => fetcher.submit({ intent: "sendNow", email }, { method: "POST" })}
               >
                 <s-icon type="email" /> Send a summary now
+              </button>
+            </div>
+          </div>
+        </CardSection>
+      </Card>
+
+      <Card>
+        <CardSection title="Blocking Alerts">
+          <p>
+            Get an email when your store blocks far more page views than
+            usual within an hour. A sudden jump usually means a bot attack, or
+            a new rule that is stopping real shoppers by mistake.
+          </p>
+          <p>
+            An alert is sent when the last hour has at least your alert level
+            of blocked page views and at least {SPIKE_FACTOR} times the usual
+            hourly number over the past week. You get at most one alert every{" "}
+            {ALERT_COOLDOWN_MS / 3_600_000} hours.
+          </p>
+          {!data.canSend && (
+            <div style={{ marginTop: 12 }}>
+              <Banner tone="warning">
+                <p>Email sending is not set up on this app yet, so alerts cannot be sent for now.</p>
+              </Banner>
+            </div>
+          )}
+        </CardSection>
+        <CardSection>
+          <div style={{ display: "grid", gap: 12, maxWidth: 480 }}>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span>Send alerts to</span>
+              <input
+                name="alertEmail"
+                type="email"
+                className={styles.input}
+                value={alertEmail}
+                placeholder="you@example.com"
+                onChange={(event) => setAlertEmail(event.currentTarget.value)}
+              />
+            </label>
+            <label style={{ display: "grid", gap: 4 }}>
+              <span>Alert level (blocked page views in one hour)</span>
+              <input
+                name="threshold"
+                type="number"
+                min={MIN_THRESHOLD}
+                max={MAX_THRESHOLD}
+                step={1}
+                className={styles.input}
+                value={threshold}
+                onChange={(event) => setThreshold(event.currentTarget.value)}
+              />
+            </label>
+            <StatusToggle
+              name="spikeAlerts"
+              enabled={data.spikeAlertEnabled}
+              onToggle={(next) =>
+                fetcher.submit(
+                  next
+                    ? { intent: "alerts", enabled: "on", email: alertEmail, threshold }
+                    : { intent: "alerts", email: alertEmail, threshold },
+                  { method: "POST" },
+                )
+              }
+              label={data.spikeAlertEnabled ? "Blocking alerts are on." : "Blocking alerts are off."}
+            />
+            {data.lastSpikeAlertAt && (
+              <p>Last alert sent {new Date(data.lastSpikeAlertAt).toLocaleString()}.</p>
+            )}
+            <div className={styles.toolbar}>
+              <button
+                type="button"
+                className={styles.outlineButton}
+                disabled={fetcher.state !== "idle"}
+                onClick={() =>
+                  fetcher.submit(
+                    data.spikeAlertEnabled
+                      ? { intent: "alerts", enabled: "on", email: alertEmail, threshold }
+                      : { intent: "alerts", email: alertEmail, threshold },
+                    { method: "POST" },
+                  )
+                }
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                className={styles.outlineButton}
+                disabled={!data.canSend || fetcher.state !== "idle"}
+                onClick={() =>
+                  fetcher.submit({ intent: "testAlert", email: alertEmail, threshold }, { method: "POST" })
+                }
+              >
+                <s-icon type="email" /> Send a test alert
               </button>
             </div>
           </div>
